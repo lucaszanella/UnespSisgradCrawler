@@ -14,7 +14,7 @@ import java.io.IOException;
 //
 
 //System.setProperty("jsse.enableSNIExtension", "false"); CONSERTAR ESTE PROBLEMA
-public Class SimpleRequest {
+public class SimpleRequest {
  public static String response;
  public static String responseCode;
  public static String responseMessage;
@@ -22,6 +22,9 @@ public Class SimpleRequest {
  public static List < String > cookies;
 
  public SimpleRequest(String url, String postQuery, List < String > rcookies) throws Exception {
+  System.out.println("calling "+url);
+  System.out.println("query "+postQuery);
+  System.out.println("cookies "+rcookies);
   URL myurl = new URL(url);
   HttpsURLConnection con = (HttpsURLConnection) myurl.openConnection();
   con.setInstanceFollowRedirects(false);
@@ -49,7 +52,7 @@ public Class SimpleRequest {
   String response = "";
   String line;
   while ((line = buff.readLine()) != null) {
-   response += line + "\n";
+   this.response += line + "\n";
   }
 
   //use inputLine.toString(); here it would have whole source
@@ -58,7 +61,7 @@ public Class SimpleRequest {
   this.cookies = con.getHeaderFields().get("Set-Cookie");
   this.responseCode = Integer.toString(con.getResponseCode());
   //List<String> location = new List<String>();
-  this.String responseMessage = con.getResponseMessage();
+  this.responseMessage = con.getResponseMessage();
   if (responseCode.equals("302")) {
    this.location = con.getHeaderFields().get("Location").get(0);
   }

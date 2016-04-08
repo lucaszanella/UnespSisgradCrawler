@@ -10,21 +10,21 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 
-public Class Main {
+public class Main {
+  //Loads login data from account.txt
+  private static String baseurl = "https://sistemas.feg.unesp.br/sentinela/";
+  //private static String baseurl = "https://sistemas.bauru.unesp.br/sentinela/";
+  private static String login_action = "login.action";
+  private static String login_url = baseurl+login_action;
+  //private static String login = "https://httpbin.org/post";
+  private static String getMessagesAction = "sentinela.openMessage.action?emailTipo=recebidas";
+  private static String messages = baseurl+getMessagesAction;
+  private static String viewMessagesAction1 = "sentinela.viewMessage.action?txt_id=";
+  private static String viewMessagesAction2 = "&emailTipo=recebidas";
+  private static String mountMessageLink(String id) {
+    return(baseurl+viewMessagesAction1+id+viewMessagesAction2);
+  }
   public static void main(String[] args) throws Exception {
-    //Loads login data from account.txt
-    private static String baseurl = "https://sistemas.feg.unesp.br/sentinela/";
-    //private static String baseurl = "https://sistemas.bauru.unesp.br/sentinela/";
-    private static String login_action = "login.action";
-    private static String login_url = baseurl+login_action;
-    //private static String login = "https://httpbin.org/post";
-    private static String getMessagesAction = "sentinela.openMessage.action?emailTipo=recebidas";
-    private static String messages = baseurl+getMessagesAction;
-    private static String viewMessagesAction1 = "sentinela.viewMessage.action?txt_id=";
-    private static String viewMessagesAction2 = "&emailTipo=recebidas";
-    private static String mountMessageLink(String id) {
-      return(baseurl+viewMessagesAction1+id+viewMessagesAction2);
-    }
     
     //opens file account.txt with username as password in the format:
     //user=my_username
@@ -39,13 +39,13 @@ public Class Main {
     query += "&";
     query += "txt_senha="+URLEncoder.encode(password,"UTF-8");
     //SimpleRequest mySimpleRequest(url, postQueryEncoded, listOfCookies) //basic usage of SimpleRequest
-    SimpleRequest loginRequest(login_url,query,null);//calls the login url, POSTing the query with user and password
+    SimpleRequest loginRequest = new SimpleRequest(login_url,query,null);//calls the login url, POSTing the query with user and password
     //Do the login to get the cookies and response
     //Map<String,Object> do_login = simpleRequest(login, query, null);
     //System.out.println("classe: "+do_login.get("cookies").getClass().getName());
     String locationRedirect = loginRequest.location;//.toString();
     List<String> cookies = loginRequest.cookies;
-    SimpleRequest firstScreenAfterLoginRequest(locationRedirect, new String(), cookies);
+    SimpleRequest firstScreenAfterLoginRequest = new SimpleRequest(locationRedirect, new String(), cookies);
 
     System.out.println(loginRequest.response);
     System.out.println(firstScreenAfterLoginRequest.response);
