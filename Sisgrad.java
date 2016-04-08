@@ -27,7 +27,7 @@ public class Sisgrad {
     return(baseurl+viewMessagesAction1+id+viewMessagesAction2);
   }
   
-  public static HashMap<String, String> simpleRequest(String url, String postQuery, List<String> cookies) throws Exception {
+  public static Map<String, Object> simpleRequest(String url, String postQuery, List<String> cookies) throws Exception {
     URL myurl = new URL(url);
     HttpsURLConnection con = (HttpsURLConnection)myurl.openConnection();
     con.setInstanceFollowRedirects(false);
@@ -48,22 +48,37 @@ public class Sisgrad {
       output.close();
     }
 
-    DataInputStream input = new DataInputStream( con.getInputStream() ); 
-    
+    //DataInputStream dis = new DataInputStream( con.getInputStream() ); 
+    String charset = "ISO-8859-1";
+    BufferedReader buff = new BufferedReader(
+        new InputStreamReader(con.getInputStream(), charset));
     String response = "";
-    for( int c = input.read(); c != -1; c = input.read() ) 
-    response += c;
-    input.close(); 
+    String line;
+    while ((line = buff.readLine()) != null) {
+        response += line + "\n";
+    }
+    
+    //use inputLine.toString(); here it would have whole source
+    //String response = inputLine.toString();
     
     List<String> rCookies = con.getHeaderFields().get("Set-Cookie");
     String responseCode = Integer.toString(con.getResponseCode());
-    String responseMessage = con .getResponseMessage();
-    System.out.println("Resp Code:"+responseCode); 
-    System.out.println("Resp Message:"+ responseMessage); 
-    System.out.println("Cookies:"+ rCookies);
+    //List<String> location = new List<String>();
+    String responseMessage = con.getResponseMessage();
+    //System.out.println("Resp Code:"+responseCode); 
+    //System.out.println("Resp Message:"+ responseMessage); 
+    //System.out.println("Cookies:"+ rCookies);
+    //System.out.println("Response:"+ response);
     
-    
-    return(new HashMap<String,String>()); 
+    Map<String,Object> r = new HashMap<String,Object>();
+    r.put("response",response);
+    r.put("responseCode",responseCode);
+    r.put("message",responseMessage);
+    r.put("cookies",rCookies);
+    if (responseCode.equals("302")){
+      r.put("location", con.getHeaderFields().get("Location").get(0));
+    }
+    return(r); 
   }
   
   public static void main(String[] args) throws Exception {
@@ -80,9 +95,14 @@ public class Sisgrad {
     
     //simpleRequest(url, postQueryEncoded, listOfCookies)
     //Do the login to get the cookies and response
-    simpleRequest(login, query, null);
-    
-    System.out.println(username+password);
+    Map<String,Object> do_login = simpleRequest(login, query, null);
+    //System.out.println("classe: "+do_login.get("cookies").getClass().getName());
+    String locationRedirect = (String) do_login.get("location");//.toString();
+    List<String> cookies = (List<String>) do_login.get("cookies");
+    Map<String,Object> first_screen = simpleRequest(locationRedirect, new String(), cookies);
+
+    System.out.println(do_login.get("response"));
+    System.out.println(first_screen.get("response"));
   }
   
   //Just a method I borrowed from internet to open a simple text file
