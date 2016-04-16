@@ -15,16 +15,16 @@ import java.io.IOException;
 
 //System.setProperty("jsse.enableSNIExtension", "false"); CONSERTAR ESTE PROBLEMA
 public class SimpleRequest {
- public static String response;
- public static String responseCode;
- public static String responseMessage;
- public static String location;
- public static List < String > cookies;
+ public String response;
+ public String responseCode;
+ public String responseMessage;
+ public String location;
+ public List < String > cookies;
 
  public SimpleRequest(String url, String postQuery, List < String > rcookies) throws Exception {
-  System.out.println("calling "+url);
-  System.out.println("query "+postQuery);
-  System.out.println("cookies "+rcookies);
+  //System.out.println("calling "+url);
+  //System.out.println("query "+postQuery);
+  //System.out.println("cookies "+rcookies);
   URL myurl = new URL(url);
   HttpsURLConnection con = (HttpsURLConnection) myurl.openConnection();
   con.setInstanceFollowRedirects(false);
