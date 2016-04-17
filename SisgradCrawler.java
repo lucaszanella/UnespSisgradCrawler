@@ -15,46 +15,67 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
-public class Main {
-  //Loads login data from account.txt
-  private static String baseurl = "https://sistemas.unesp.br/sentinela/";
+public class SisgradCrawler {
+  String username; String password; String baseurl;
+  List<String> cookies;
+  //private static String baseurl = "https://sistemas.unesp.br/sentinela/";
   //private static String baseurl = "https://sistemas.bauru.unesp.br/sentinela/";
-  private static String login_action = "login.action";
-  private static String login_url = baseurl+login_action;
+  private String login_action;
+  private String login_url;
   //private static String login = "https://httpbin.org/post";
-  private static String getMessagesAction = "sentinela.openMessage.action?emailTipo=recebidas";
-  private static String messages = baseurl+getMessagesAction;
-  private static String viewMessagesAction1 = "sentinela.viewMessage.action?txt_id=";
-  private static String viewMessagesAction2 = "&emailTipo=recebidas";
-  private static String mountMessageLink(String id, int page) {
+  private String getMessagesAction;
+  private String messages;
+  private String viewMessagesAction1;
+  private String viewMessagesAction2;
+  private String mountMessagePage(int page, String magicalNumber) {
+    String thingsInTheEnd;
+    if (page==0) {
+      thingsInTheEnd = "&p="+page+"&d-"+magicalNumber+"-p="+2;
+    } else {
+      thingsInTheEnd = "";
+    }
+    return(this.baseurl+"sentinela.openMessage.action?emailTipo=recebidas"+thingsInTheEnd);
+  }
+  private String mountMessageLink(String id, int page) {
     return(baseurl+viewMessagesAction1+id+viewMessagesAction2);
   }
-  public static void main(String[] args) throws Exception {
-    
-    //opens file account.txt with username as password in the format:
-    //user=my_username
-    //password=my_password
-    String login_data = readFile("account.txt");
-    String[] parts = login_data.split("\\r?\\n");
-    String username = parts[0].split("=")[1];
-    String password = parts[1].split("=")[1];
-
+  public SisgradCrawler(String username, String password, String baseurl) throws Exception {
+    this.username = username;
+    this.password = password;
+    this.baseurl = baseurl;
+    this.login_action = "login.action";
+    this.login_url = baseurl+login_action;
+  //private static String login = "https://httpbin.org/post";
+    this.getMessagesAction = "sentinela.openMessage.action?emailTipo=recebidas";
+    this.messages = baseurl+getMessagesAction;
+    this.viewMessagesAction1 = "sentinela.viewMessage.action?txt_id=";
+    this.viewMessagesAction2 = "&emailTipo=recebidas";
+  }
+  public void connect() throws Exception {
     //Mounts POST query that's gonna be sent to the login page
     String query = "txt_usuario="+URLEncoder.encode(username,"UTF-8"); 
     query += "&";
     query += "txt_senha="+URLEncoder.encode(password,"UTF-8");
     //SimpleRequest mySimpleRequest(url, postQueryEncoded, listOfCookies) //basic usage of SimpleRequest
-    SimpleRequest loginRequest = new SimpleRequest(login_url,query,null);//calls the login url, POSTing the query with user and password
+    System.out.println("DEBUG: "+this.login_url+" : "+ query);
+    SimpleRequest loginRequest = new SimpleRequest(this.login_url,query,null);//calls the login url, POSTing the query with user and password
     String locationRedirect = loginRequest.location;//.toString();
-    List<String> cookies = loginRequest.cookies;
-    SimpleRequest firstScreenAfterLoginRequest = new SimpleRequest(locationRedirect, new String(), cookies);
-    SimpleRequest pageToReadMessages = new SimpleRequest(messages, new String(), cookies);
-    
-    //System.out.println(loginRequest.response);
+    this.cookies = loginRequest.cookies;
+  }
+  public List<Map<String,String>> getMessages(int page)  throws Exception {
+    //SimpleRequest firstScreenAfterLoginRequest = new SimpleRequest(locationRedirect, new String(), this.cookies);
+    SimpleRequest pageToReadMessages = new SimpleRequest(mountMessagePage(0, ""), new String(), this.cookies);
     System.out.println("-----------------------------");
     //System.out.println(pageToReadMessages.response.substring(25000,50000));
     Document doc = Jsoup.parse(pageToReadMessages.response);
     Element table = doc.getElementById("destinatario");
+    Elements pageNumbers = doc.getElementsByClass("listagemTopo");
+    Elements pageLinks = pageNumbers.select("a");
+    for (Element pageLink : pageLinks) {
+      String pageBaseLink = pageLink.attr("href").split("&d-")[1].split("-p")[0];//Crazy number that I don't know the utility but won't work without it
+      break;//They're all the same, so I break here, but if something change in the future, here's the loop so I can use :)
+    }
+    //ystem.out.println(pageLinks);
     Elements messages = table.getElementsByTag("tr");
     String title; String author;String subject; String messageId; String messageIdString; String sentDate; String readDate;
     int c = 0;
@@ -76,30 +97,13 @@ public class Main {
         messageRow.put("readDate",readDate);
         messagesList.add(messageRow);
         //System.out.println();
-      } else if (c>4){
+      } else if (c>=5){
         break;
       }
       c+=1;
     }
     System.out.println(messagesList);
+    return messagesList;
     //System.out.println(pageToReadMessages.response);
   }
-  //Just a method I borrowed from internet to open a simple text file
-  //and convert it to a Sring
-  private static String readFile(String fileName) throws IOException {
-   BufferedReader br = new BufferedReader(new FileReader(fileName));
-   try {
-        StringBuilder sb = new StringBuilder();
-        String line = br.readLine();
-
-        while (line != null) {
-            sb.append(line);
-            sb.append("\n");
-            line = br.readLine();
-        }
-        return sb.toString();
-   } finally {
-        br.close();
-   }
- }
 }
