@@ -24,11 +24,13 @@ public class Main {
     String[] parts = login_data.split("\\r?\\n");
     String username = parts[0].split("=")[1];
     String password = parts[1].split("=")[1];
-    SisgradCrawler sisgrad = new SisgradCrawler(username, password, baseurl);
+    String magicalNumber = "4827107";
+    SisgradCrawler sisgrad = new SisgradCrawler(username, password, baseurl, magicalNumber);
     sisgrad.connect();
     List<Map<String,String>> messages = sisgrad.getMessages(0);
-    System.out.println("iniciando...");
+    List<Map<String,String>> messages1= sisgrad.getMessages(1);
     System.out.println(messages);
+    System.out.println(messages1);
   }
   //Just a method I borrowed from internet to open a simple text file
   //and convert it to a Sring

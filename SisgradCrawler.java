@@ -27,9 +27,12 @@ public class SisgradCrawler {
   private String messages;
   private String viewMessagesAction1;
   private String viewMessagesAction2;
+  private String magicalNumber;
+  private Boolean alreadyLoadedMagicalNumber = false;
+  private Boolean debugMode = true;
   private String mountMessagePage(int page, String magicalNumber) {
     String thingsInTheEnd;
-    if (page==0) {
+    if (page!=0) {
       thingsInTheEnd = "&p="+page+"&d-"+magicalNumber+"-p="+2;
     } else {
       thingsInTheEnd = "";
@@ -39,9 +42,13 @@ public class SisgradCrawler {
   private String mountMessageLink(String id, int page) {
     return(baseurl+viewMessagesAction1+id+viewMessagesAction2);
   }
-  public SisgradCrawler(String username, String password, String baseurl) throws Exception {
+  public SisgradCrawler(String username, String password, String baseurl, String magicalNumber) throws Exception {
     this.username = username;
     this.password = password;
+    if (magicalNumber!=null) {
+      this.magicalNumber = magicalNumber;
+      this.alreadyLoadedMagicalNumber = true;
+    }
     this.baseurl = baseurl;
     this.login_action = "login.action";
     this.login_url = baseurl+login_action;
@@ -57,24 +64,51 @@ public class SisgradCrawler {
     query += "&";
     query += "txt_senha="+URLEncoder.encode(password,"UTF-8");
     //SimpleRequest mySimpleRequest(url, postQueryEncoded, listOfCookies) //basic usage of SimpleRequest
-    System.out.println("DEBUG: "+this.login_url+" : "+ query);
+    //System.out.println("DEBUG: "+this.login_url+" : "+ query);
+    if (debugMode) {System.out.println("logging in");}
     SimpleRequest loginRequest = new SimpleRequest(this.login_url,query,null);//calls the login url, POSTing the query with user and password
     String locationRedirect = loginRequest.location;//.toString();
     this.cookies = loginRequest.cookies;
   }
+  public String getMagicalNumber(SimpleRequest page) {
+    Document doc = Jsoup.parse(page.response);
+    Elements pageNumbers = doc.getElementsByClass("listagemTopo");
+    Elements pageLinks = pageNumbers.select("a");
+    //if (debugMode) {System.out.println("pageLinks: "+ pageLinks);}
+    String magicalNumber="";
+    for (Element pageLink : pageLinks) {
+      //if (debugMode) {System.out.println("MagicalNumber requested, pageLink is: "+pageLink);}
+      magicalNumber = pageLink.attr("href").split("d-")[1].split("-p")[0];//Crazy number that I don't know the utility but won't work without it
+      //if (debugMode) {System.out.println("MagicalNumber requested, it is: "+magicalNumber);}
+      break;//They're all the same, so I break here, but if something change in the future, here's the loop so I can use :)
+    }
+    return magicalNumber;
+  }
   public List<Map<String,String>> getMessages(int page)  throws Exception {
     //SimpleRequest firstScreenAfterLoginRequest = new SimpleRequest(locationRedirect, new String(), this.cookies);
-    SimpleRequest pageToReadMessages = new SimpleRequest(mountMessagePage(0, ""), new String(), this.cookies);
-    System.out.println("-----------------------------");
+    SimpleRequest pageToReadMessages;
+    if (page==0) {
+      if (debugMode) {System.out.println("getting page 0");}
+      pageToReadMessages = new SimpleRequest(mountMessagePage(0, ""), new String(), this.cookies);
+      this.magicalNumber = getMagicalNumber(pageToReadMessages);
+      this.alreadyLoadedMagicalNumber = true;
+    } else if (this.alreadyLoadedMagicalNumber) {
+      if (debugMode) {System.out.println("already loaded page magicalNumber before, now getting page "+page);}
+      pageToReadMessages = new SimpleRequest(mountMessagePage(page, this.magicalNumber), new String(), this.cookies);
+    } else {
+      if (debugMode) {System.out.println("didn't load magicalNumber before, gonna get the first page to get magicalNumber and then load the page "+page);}
+      SimpleRequest magicalNumberRequest = new SimpleRequest(mountMessagePage(0, ""), new String(), this.cookies);//Yes, I really need to load this page first just to get the magicalNumber that ables me to get the other pages  
+      if (debugMode) {System.out.println("Setting up magical number: "+getMagicalNumber(magicalNumberRequest));}      
+      this.magicalNumber = getMagicalNumber(magicalNumberRequest);
+      
+      if (debugMode) {System.out.println("already loaded magicalNumber, now gonna get new page: "+page);}  
+      pageToReadMessages = new SimpleRequest(mountMessagePage(page,this.magicalNumber), new String(), this.cookies);
+      this.alreadyLoadedMagicalNumber = true;
+    }
+    //System.out.println("-----------------------------");
     //System.out.println(pageToReadMessages.response.substring(25000,50000));
     Document doc = Jsoup.parse(pageToReadMessages.response);
     Element table = doc.getElementById("destinatario");
-    Elements pageNumbers = doc.getElementsByClass("listagemTopo");
-    Elements pageLinks = pageNumbers.select("a");
-    for (Element pageLink : pageLinks) {
-      String pageBaseLink = pageLink.attr("href").split("&d-")[1].split("-p")[0];//Crazy number that I don't know the utility but won't work without it
-      break;//They're all the same, so I break here, but if something change in the future, here's the loop so I can use :)
-    }
     //ystem.out.println(pageLinks);
     Elements messages = table.getElementsByTag("tr");
     String title; String author;String subject; String messageId; String messageIdString; String sentDate; String readDate;
@@ -102,7 +136,7 @@ public class SisgradCrawler {
       }
       c+=1;
     }
-    System.out.println(messagesList);
+    //System.out.println(messagesList);
     return messagesList;
     //System.out.println(pageToReadMessages.response);
   }
