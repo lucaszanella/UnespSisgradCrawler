@@ -8,3 +8,4 @@ SimpleRequest.class
 config.codeanywhere
 SisgradCrawler.class
 ThreadTestings.java
+*.class
