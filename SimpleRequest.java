@@ -21,20 +21,20 @@ public class SimpleRequest {
  public String location;
  public List < String > cookies;
 
- public SimpleRequest(String url, String postQuery, List < String > rcookies) throws Exception {
-  //System.out.println("calling "+url);
+ public SimpleRequest(URL url, String postQuery, List < String > _cookies) throws Exception {
+  System.out.println("calling "+url);
   //System.out.println("query "+postQuery);
-  //System.out.println("cookies "+rcookies);
-  URL myurl = new URL(url);
+  System.out.println("cookies "+_cookies);
+  URL myurl = url;
   HttpsURLConnection con = (HttpsURLConnection) myurl.openConnection();
   con.setInstanceFollowRedirects(false);
   con.setRequestProperty("Content-length", String.valueOf(postQuery.length()));
   con.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
   con.setRequestProperty("User-Agent", "Mozilla/4.0 (compatible; MSIE 5.0;Windows98;DigExt)");
-  con.setDoOutput(true);
+  con.setDoOutput(true);//VERIFICAR ISSO!
   con.setDoInput(true);
-  if (rcookies != null) {
-   for (String cookie: rcookies) {
+  if (_cookies != null) {
+   for (String cookie: _cookies) {
     con.addRequestProperty("Cookie", cookie.split(";", 2)[0]);
    }
   }
@@ -42,7 +42,7 @@ public class SimpleRequest {
    con.setRequestMethod("POST");
    DataOutputStream output = new DataOutputStream(con.getOutputStream());
    output.writeBytes(postQuery);
-   output.close();
+   output.close();//VERIFICAR ISSO!
   }
 
   //DataInputStream dis = new DataInputStream( con.getInputStream() ); 

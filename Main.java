@@ -35,20 +35,21 @@ public class Main {
     threads.add(t);
   }
   public static void main(String[] args) throws Exception{
-    //Loads login data from account.txt
-    final String baseurl = "https://sistemas.unesp.br/sentinela/";
     //Read username information from account.txt
     final String login_data = readFile("account.txt");
     String[] parts = login_data.split("\\r?\\n");
     final String username = parts[0].split("=")[1];
     final String password = parts[1].split("=")[1];
-    final String magicalNumber = "4827107";
-    final SisgradCrawler login = new SisgradCrawler(username, password, baseurl, magicalNumber);
-    login.connect();
+    //final String magicalNumber = "4827107";
+    final SisgradCrawler login = new SisgradCrawler();
+    login.loginToSentinela(username, password);
     System.out.println("logged in, now gonna push content from server");
     List<Thread> requestThreads = new ArrayList<Thread>();
     initializeMessageLoaderThread(requestThreads, login, 0);
     initializeMessageLoaderThread(requestThreads, login, 1);
+    //SimpleRequest classesRequest = new SimpleRequest(domain+"/"+classesPage, new String(), login.cookies);
+    //System.out.println(classesRequest.response);
+    //System.out.println(login.getClasses());
   }
   //Just a method I borrowed from internet to open a simple text file
   //and convert it to a Sring
