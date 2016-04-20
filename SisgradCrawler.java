@@ -116,7 +116,7 @@ public class SisgradCrawler {
     List<Map<String,String>> messagesList = new ArrayList<Map<String,String>>();
     for (Element message : messages) {
       Elements rowOfMessageTable = message.getElementsByTag("td");
-      if (c>0 && c<3) {
+      if (c>0) {
         author = rowOfMessageTable.get(2).text();
         title = rowOfMessageTable.get(3).select("a").text();
         messageIdString = rowOfMessageTable.get(3).select("a").first().attr("href");
@@ -131,8 +131,8 @@ public class SisgradCrawler {
         messageRow.put("readDate",readDate);
         messagesList.add(messageRow);
         //System.out.println();
-      } else if (c>=5){
-        break;
+      } else {
+        //
       }
       c+=1;
     }

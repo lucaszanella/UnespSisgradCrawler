@@ -16,21 +16,39 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
 public class Main {
+  static Boolean debugMode = true;
+  public static void initializeMessageLoaderThread(List<Thread> threads, final SisgradCrawler sisgrad, final int page) {
+    Thread t = new Thread(){
+      public void run(){
+        try {
+          if (debugMode) {System.out.println("starting new thread to request page: "+page);}
+          SisgradCrawler request = sisgrad;
+          List<Map<String,String>> messages = request.getMessages(page);
+          System.out.println(messages.get(0));
+          if (debugMode) {System.out.println("ended request of page "+page);}
+        } catch (Exception e) {
+          
+        }
+      }
+    };
+    t.start();
+    threads.add(t);
+  }
   public static void main(String[] args) throws Exception{
     //Loads login data from account.txt
-    String baseurl = "https://sistemas.unesp.br/sentinela/";
+    final String baseurl = "https://sistemas.unesp.br/sentinela/";
     //Read username information from account.txt
-    String login_data = readFile("account.txt");
+    final String login_data = readFile("account.txt");
     String[] parts = login_data.split("\\r?\\n");
-    String username = parts[0].split("=")[1];
-    String password = parts[1].split("=")[1];
-    String magicalNumber = "4827107";
-    SisgradCrawler sisgrad = new SisgradCrawler(username, password, baseurl, magicalNumber);
-    sisgrad.connect();
-    List<Map<String,String>> messages = sisgrad.getMessages(0);
-    List<Map<String,String>> messages1= sisgrad.getMessages(1);
-    System.out.println(messages);
-    System.out.println(messages1);
+    final String username = parts[0].split("=")[1];
+    final String password = parts[1].split("=")[1];
+    final String magicalNumber = "4827107";
+    final SisgradCrawler login = new SisgradCrawler(username, password, baseurl, magicalNumber);
+    login.connect();
+    System.out.println("logged in, now gonna push content from server");
+    List<Thread> requestThreads = new ArrayList<Thread>();
+    initializeMessageLoaderThread(requestThreads, login, 0);
+    initializeMessageLoaderThread(requestThreads, login, 1);
   }
   //Just a method I borrowed from internet to open a simple text file
   //and convert it to a Sring
