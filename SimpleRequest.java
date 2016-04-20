@@ -5,12 +5,13 @@ import javax.net.ssl.HttpsURLConnection;
 import java.net.URLEncoder;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.ArrayList;
 import java.util.List;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 
-//Just a Class designed to facilitate requests to Unesp's Sisgrad server
+//Just a Class designed to facilitate HTTPs requests to Unesp's Sisgrad server, that will return HTML pages
 //
 
 //System.setProperty("jsse.enableSNIExtension", "false"); CONSERTAR ESTE PROBLEMA
@@ -21,17 +22,36 @@ public class SimpleRequest {
  public String location;
  public List < String > cookies;
 
- public SimpleRequest(URL url, String postQuery, List < String > _cookies) throws Exception {
-  System.out.println("calling "+url);
+ public SimpleRequest(URL url, String postQuery, List < List < String > > listOfCookiesList) throws Exception {
+  System.out.println("calling " + url);
   //System.out.println("query "+postQuery);
-  System.out.println("cookies "+_cookies);
-  URL myurl = url;
-  HttpsURLConnection con = (HttpsURLConnection) myurl.openConnection();
+  System.out.println("cookies " + listOfCookiesList);
+  List < String > _cookies = new ArrayList < String > ();
+  if (listOfCookiesList != null) {
+   //Choose right patch to cookies
+   for (List < String > cookieList: listOfCookiesList) {
+    for (String singleCookie: cookieList) {
+     String search = singleCookie.split("Path")[1];
+     //System.out.println("singlecookie: "+singleCookie);
+     //System.out.println("search: "+search);
+     //System.out.println("search.contains(sentinela): "+ search.contains("sentinela"));
+     //System.out.println("url.getPath().contains(sentinela): "+ url.getPath().contains("sentinela"));
+     if (search.contains("sentinela") && url.getPath().contains("sentinela")) { //ANALISAR URL COM CUIDADO
+      System.out.println("foi sentinela");
+      _cookies = cookieList;
+     } else if (search.contains("academico") && url.getPath().contains("academico")) {
+      _cookies = cookieList;
+     }
+    }
+   }
+  }
+  System.out.println("cookie being used: " + _cookies);
+  HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
   con.setInstanceFollowRedirects(false);
   con.setRequestProperty("Content-length", String.valueOf(postQuery.length()));
   con.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
   con.setRequestProperty("User-Agent", "Mozilla/4.0 (compatible; MSIE 5.0;Windows98;DigExt)");
-  con.setDoOutput(true);//VERIFICAR ISSO!
+  con.setDoOutput(true); //VERIFICAR ISSO!
   con.setDoInput(true);
   if (_cookies != null) {
    for (String cookie: _cookies) {
@@ -42,7 +62,7 @@ public class SimpleRequest {
    con.setRequestMethod("POST");
    DataOutputStream output = new DataOutputStream(con.getOutputStream());
    output.writeBytes(postQuery);
-   output.close();//VERIFICAR ISSO!
+   output.close(); //VERIFICAR ISSO!
   }
 
   //DataInputStream dis = new DataInputStream( con.getInputStream() ); 
@@ -59,6 +79,7 @@ public class SimpleRequest {
   //String response = inputLine.toString();
 
   this.cookies = con.getHeaderFields().get("Set-Cookie");
+  System.out.println("Cookies got: " + this.cookies);
   this.responseCode = Integer.toString(con.getResponseCode());
   //List<String> location = new List<String>();
   this.responseMessage = con.getResponseMessage();
