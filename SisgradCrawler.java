@@ -66,8 +66,16 @@ public class SisgradCrawler {
   }
   URL academicoLogin = new URL(this.protocol + "://" + this.domain + "/" + "sentinela" + "/" + "sentinela.acessarSistema.action?id=3");
   SimpleRequest loginRequest = new SimpleRequest(academicoLogin, new String(), this.cookies); //calls the login url from academico's page
-  String locationRedirect = loginRequest.location;
-  this.cookies.add(loginRequest.cookies);
+  URL locationRedirect = new URL(loginRequest.location);
+  if (loginRequest.cookies != null) {
+   System.out.println("adding following cookies: "+loginRequest.cookies);
+   this.cookies.add(loginRequest.cookies);
+  }
+  SimpleRequest pageafterLogin = new SimpleRequest(locationRedirect, new String(), this.cookies); //calls the login url from academico's page
+  if (pageafterLogin.cookies != null) {
+   System.out.println("adding following cookies: "+pageafterLogin.cookies);
+    this.cookies.add(pageafterLogin.cookies);
+  } 
  }
  public String getMagicalNumber(SimpleRequest page) {
   Document doc = Jsoup.parse(page.response);
@@ -156,6 +164,17 @@ public class SisgradCrawler {
   List < Map < String, String >> a = new ArrayList < Map < String, String >> ();
   URL getClassesURL = new URL(this.protocol + "://" + this.domain + "/" + "academico" + "/aluno/cadastro.horarioAulas.action");
   SimpleRequest classesRequest = new SimpleRequest(getClassesURL, new String(), this.cookies);
+  System.out.println("getClasses() response: "+classesRequest.response);
+  System.out.println("getClasses() code: "+classesRequest.responseMessage);
+  System.out.println("getClasses() location: "+classesRequest.location);
+  SimpleRequest classesRequestRedirected = new SimpleRequest(new URL(classesRequest.location), new String(), this.cookies);
+  System.out.println("getClasses() response: "+classesRequestRedirected.response);
+  System.out.println("getClasses() code: "+classesRequestRedirected.responseMessage);
+  System.out.println("getClasses() location: "+classesRequestRedirected.location); 
+  SimpleRequest classesRequestRedirectedAgain = new SimpleRequest(new URL(classesRequestRedirected.location), new String(), this.cookies);
+  System.out.println("getClasses() response: "+classesRequestRedirectedAgain.response);
+  System.out.println("getClasses() code: "+classesRequestRedirectedAgain.responseMessage);
+  System.out.println("getClasses() location: "+classesRequestRedirectedAgain.location);
   //a.add(classesRequest.response);
   return (a);
  }

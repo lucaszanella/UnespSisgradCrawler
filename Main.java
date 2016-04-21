@@ -49,7 +49,9 @@ public class Main {
    login.loginToSentinela(username, password);
    System.out.println("logged in, now gonna push content from server");
    List < Thread > requestThreads = new ArrayList < Thread > ();
-   initializeMessageLoaderThread(requestThreads, login, 0);
+   //initializeMessageLoaderThread(requestThreads, login, 0);
+   login.loginToAcademico();
+   List < Map < String, String >> getClassesRequest = login.getClasses();
    //initializeMessageLoaderThread(requestThreads, login, 1);
    //SimpleRequest classesRequest = new SimpleRequest(domain+"/"+classesPage, new String(), login.cookies);
    //System.out.println(classesRequest.response);

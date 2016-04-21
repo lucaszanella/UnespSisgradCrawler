@@ -28,19 +28,15 @@ public class SimpleRequest {
   System.out.println("cookies " + listOfCookiesList);
   List < String > _cookies = new ArrayList < String > ();
   if (listOfCookiesList != null) {
-   //Choose right patch to cookies
+   //Choose the cookies that match the path being requested
    for (List < String > cookieList: listOfCookiesList) {
     for (String singleCookie: cookieList) {
-     String search = singleCookie.split("Path")[1];
-     //System.out.println("singlecookie: "+singleCookie);
-     //System.out.println("search: "+search);
-     //System.out.println("search.contains(sentinela): "+ search.contains("sentinela"));
-     //System.out.println("url.getPath().contains(sentinela): "+ url.getPath().contains("sentinela"));
-     if (search.contains("sentinela") && url.getPath().contains("sentinela")) { //ANALISAR URL COM CUIDADO
-      System.out.println("foi sentinela");
+     String search = singleCookie.split("Path")[1].split("/")[1];
+     System.out.println("search "+search);
+     if (url.getPath().split("/")[1].contains(search)) { //ANALISAR URL COM CUIDADO
       _cookies = cookieList;
-     } else if (search.contains("academico") && url.getPath().contains("academico")) {
-      _cookies = cookieList;
+      System.out.println("chose "+search);
+      System.out.println("url.getPath() cutted: "+url.getPath().split("/")[1]);
      }
     }
    }
@@ -51,7 +47,6 @@ public class SimpleRequest {
   con.setRequestProperty("Content-length", String.valueOf(postQuery.length()));
   con.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
   con.setRequestProperty("User-Agent", "Mozilla/4.0 (compatible; MSIE 5.0;Windows98;DigExt)");
-  con.setDoOutput(true); //VERIFICAR ISSO!
   con.setDoInput(true);
   if (_cookies != null) {
    for (String cookie: _cookies) {
@@ -59,6 +54,7 @@ public class SimpleRequest {
    }
   }
   if (postQuery != null) {
+   con.setDoOutput(true);
    con.setRequestMethod("POST");
    DataOutputStream output = new DataOutputStream(con.getOutputStream());
    output.writeBytes(postQuery);
