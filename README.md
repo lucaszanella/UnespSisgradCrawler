@@ -17,4 +17,5 @@ E rodar tanto o código em python como em java. Ambos são independentes.
 # Compilando e rodando o java:
 
 javac -cp ".:jsoup-1.8.3.jar" Main.java
+
 java -cp ".:jsoup-1.8.3.jar" Main
