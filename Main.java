@@ -1,3 +1,5 @@
+import com.lucaszanella.UnespSisgradCrawler.*;
+
 import java.net.URL;
 import java.io.*;
 import javax.net.ssl.HttpsURLConnection;
