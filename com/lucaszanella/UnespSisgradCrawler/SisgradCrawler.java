@@ -12,6 +12,10 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.Arrays;
+
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -166,17 +170,115 @@ public class SisgradCrawler {
   List < Map < String, String >> a = new ArrayList < Map < String, String >> ();
   URL getClassesURL = new URL(this.protocol + "://" + this.domain + "/" + "academico" + "/aluno/cadastro.horarioAulas.action");
   SimpleRequest classesRequest = new SimpleRequest(getClassesURL, new String(), this.cookies);
+  /*
   System.out.println("getClasses() response: "+classesRequest.response);
   System.out.println("getClasses() code: "+classesRequest.responseMessage);
   System.out.println("getClasses() location: "+classesRequest.location);
+  */
   SimpleRequest classesRequestRedirected = new SimpleRequest(new URL(classesRequest.location), new String(), this.cookies);
+  /*
   System.out.println("getClasses() response: "+classesRequestRedirected.response);
   System.out.println("getClasses() code: "+classesRequestRedirected.responseMessage);
-  System.out.println("getClasses() location: "+classesRequestRedirected.location); 
+  System.out.println("getClasses() location: "+classesRequestRedirected.location);
+  */
   SimpleRequest classesRequestRedirectedAgain = new SimpleRequest(new URL(classesRequestRedirected.location), new String(), this.cookies);
+  /*
   System.out.println("getClasses() response: "+classesRequestRedirectedAgain.response);
   System.out.println("getClasses() code: "+classesRequestRedirectedAgain.responseMessage);
   System.out.println("getClasses() location: "+classesRequestRedirectedAgain.location);
+  */
+  Document doc = Jsoup.parse(classesRequestRedirectedAgain.response);
+  Elements tableOriginal = doc.getElementsByClass("listagem quadro");
+  Element table = doc.select("table").get(1);
+  Elements lines = table.select("td");
+  Map<String, Map<String,Map<String, String>>> classesData = new HashMap<String, Map<String,Map<String, String>> >();
+  List<String> daysOfWeek = new ArrayList<String>(Arrays.asList("segunda", "terca", "quarta", "quinta", "sexta", "sabado")); 
+  Map<String,Map<String, String>> dayAndHourData = new HashMap<String,Map<String, String>>();
+  int c = 0;
+  for (Element line: lines) {
+    //System.out.println(line);
+     
+    Map<String, String> hourData = new HashMap<String, String>();
+    String dayName = line.attr("id");
+    Pattern r = Pattern.compile("[A-Za-z]*");
+    Matcher m = r.matcher(dayName);
+    String trueDayName = "";
+    if (m.find()) {trueDayName = m.group().toLowerCase();} else {System.out.println("Didn't find anything at: "+dayName);}
+    Element parentTag = line.parent();
+    String parentTagName = parentTag.tagName();
+    if (daysOfWeek.contains(trueDayName) && parentTagName.equals("tr")) {
+      if (!line.select("div").isEmpty()) {
+        String lineText = line.text();
+        String className = line.select("div").attr("title");//Not 'java class', here I mean, the name of the class of the university
+        String classText = line.select("div").text();
+        String nonsenseId = line.select("div").attr("id");//Don't know what this id means, but gonna store it for future usage
+        String hourOfThisDay = parentTag.select("th").text();
+        hourData.put("className", className);
+        hourData.put("classText", classText);
+        hourData.put("hour", hourOfThisDay);
+        hourData.put("id", nonsenseId);
+        dayAndHourData.put(hourOfThisDay, hourData);
+        System.out.println("added "+ hourData);
+      } else {
+        System.out.println("selected empty: "+line);
+      }
+    } else {
+      System.out.println("selecionou empty: "+line);
+    }
+    if (c<50 && debugMode) {
+      //if (!hourData.isEmpty()) {System.out.println(dayAndHourData);}
+      //System.out.println(trueDayName);
+      //System.out.println(line.parent().tag());
+    } else {
+      System.out.println("----------------------");
+      System.out.println(dayAndHourData);
+      break;
+    }
+    c+=1;
+  }
+  
+  /*
+  Map<String, String> segundaFeira = new HashMap<String, String>();
+  Map<String, String> tercaFeira = new HashMap<String, String>();
+  Map<String, String> quartaFeira = new HashMap<String, String>();
+  Map<String, String> quintaFeira = new HashMap<String, String>();
+  Map<String, String> sextaFeira = new HashMap<String, String>();
+  Map<String, String> sabado = new HashMap<String, String>(); 
+  Elements hours = table.select("tr");
+  int c = 0;
+  for (Element hour: hours) {
+    String SingleHour = hour.select("th").get(0).select("center").html();
+    if (c<4 && debugMode) {
+      //System.out.println(SingleHour);
+    } else {
+      break;
+    }
+    c+=1;
+    Elements days = hour.select("td");
+    //System.out.println("days "+days);
+    for (Element day : days) {
+      String dayName = day.attr("id");
+      Pattern r = Pattern.compile("[A-Za-z]*");
+      Matcher m = r.matcher(dayName);
+      String trueDayName = "";
+      if (m.find()) {trueDayName = m.group();} else {System.out.println("Didn't find anything at: "+dayName);}
+      switch (trueDayName) {
+        case "SEGUNDA":
+          
+      }
+      //if (Pattern.compile(Pattern.quote("segunda"), Pattern.CASE_INSENSITIVE).matcher(singleDay).find()){System.out.println("contém segunda");}
+      //if (singleDay.contains("SEGUNDA")) {System.out.println("contém segunda");}
+      //System.out.println(dayName);
+    }
+  }
+  */
+  
+  //Elements table2 = doc.getElementsByClass("listagem");
+  //Elements tableElements = table.select("tbody");
+  //System.out.println(classesRequestRedirectedAgain.response);
+  //System.out.println(table);
+  //System.out.println(tables); 
+  //System.out.println(hours.get(1));
   //a.add(classesRequest.response);
   return (a);
  }

@@ -23,27 +23,28 @@ public class SimpleRequest {
  public String responseMessage;
  public String location;
  public List < String > cookies;
+ public Boolean debugMode = false;
 
  public SimpleRequest(URL url, String postQuery, List < List < String > > listOfCookiesList) throws Exception {
-  System.out.println("calling " + url);
+  if (debugMode) {System.out.println("calling " + url);}
   //System.out.println("query "+postQuery);
-  System.out.println("cookies " + listOfCookiesList);
+  if (debugMode) {System.out.println("cookies " + listOfCookiesList);}
   List < String > _cookies = new ArrayList < String > ();
   if (listOfCookiesList != null) {
    //Choose the cookies that match the path being requested
    for (List < String > cookieList: listOfCookiesList) {
     for (String singleCookie: cookieList) {
      String search = singleCookie.split("Path")[1].split("/")[1];
-     System.out.println("search "+search);
+     if (debugMode) {System.out.println("search "+search);}
      if (url.getPath().split("/")[1].contains(search)) { //ANALISAR URL COM CUIDADO
       _cookies = cookieList;
-      System.out.println("chose "+search);
-      System.out.println("url.getPath() cutted: "+url.getPath().split("/")[1]);
+      if (debugMode) {System.out.println("chose "+search);}
+      if (debugMode) {System.out.println("url.getPath() cutted: "+url.getPath().split("/")[1]);}
      }
     }
    }
   }
-  System.out.println("cookie being used: " + _cookies);
+  if (debugMode) {System.out.println("cookie being used: " + _cookies);}
   HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
   con.setInstanceFollowRedirects(false);
   con.setRequestProperty("Content-length", String.valueOf(postQuery.length()));
@@ -64,7 +65,7 @@ public class SimpleRequest {
   }
 
   //DataInputStream dis = new DataInputStream( con.getInputStream() ); 
-  String charset = "ISO-8859-1";
+  String charset = "UTF-8";
   BufferedReader buff = new BufferedReader(
    new InputStreamReader(con.getInputStream(), charset));
   String response = "";
@@ -77,7 +78,7 @@ public class SimpleRequest {
   //String response = inputLine.toString();
 
   this.cookies = con.getHeaderFields().get("Set-Cookie");
-  System.out.println("Cookies got: " + this.cookies);
+  if (debugMode) {System.out.println("Cookies got: " + this.cookies);}
   this.responseCode = Integer.toString(con.getResponseCode());
   //List<String> location = new List<String>();
   this.responseMessage = con.getResponseMessage();

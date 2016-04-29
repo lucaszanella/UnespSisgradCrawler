@@ -54,6 +54,8 @@ public class Main {
    //initializeMessageLoaderThread(requestThreads, login, 0);
    login.loginToAcademico();
    List < Map < String, String >> getClassesRequest = login.getClasses();
+   //System.out.println(readFile("test.txt")); ENCODING TEST
+   //System.out.println("á teste lol ã que");
    //initializeMessageLoaderThread(requestThreads, login, 1);
    //SimpleRequest classesRequest = new SimpleRequest(domain+"/"+classesPage, new String(), login.cookies);
    //System.out.println(classesRequest.response);
