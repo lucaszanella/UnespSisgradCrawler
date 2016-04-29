@@ -191,13 +191,14 @@ public class SisgradCrawler {
   Elements tableOriginal = doc.getElementsByClass("listagem quadro");
   Element table = doc.select("table").get(1);
   Elements lines = table.select("td");
-  Map<String, Map<String,Map<String, String>>> classesData = new HashMap<String, Map<String,Map<String, String>> >();
-  List<String> daysOfWeek = new ArrayList<String>(Arrays.asList("segunda", "terca", "quarta", "quinta", "sexta", "sabado")); 
-  Map<String,Map<String, String>> dayAndHourData = new HashMap<String,Map<String, String>>();
+  List<String> daysOfWeek = new ArrayList<String>(Arrays.asList("segunda", "terca", "quarta", "quinta", "sexta", "sabado"));//just a list of days of the week
+  //Map<String, Map<String,Map<String, String>>> classesData = new HashMap<String, Map<String,Map<String, String>> >();
+  Map<String, List<Map<String, String>>> classesData = new HashMap<String, List<Map<String, String>> >();
+  for (String day:daysOfWeek) {classesData.put(day, new ArrayList<Map<String,String>>());}
+  //p<String,Map<String, String>> dayAndHourData = new HashMap<String,Map<String, String>>();
   int c = 0;
   for (Element line: lines) {
     //System.out.println(line);
-     
     Map<String, String> hourData = new HashMap<String, String>();
     String dayName = line.attr("id");
     Pattern r = Pattern.compile("[A-Za-z]*");
@@ -217,21 +218,28 @@ public class SisgradCrawler {
         hourData.put("classText", classText);
         hourData.put("hour", hourOfThisDay);
         hourData.put("id", nonsenseId);
+        classesData.get(trueDayName).add(hourData);
+        /*
+        hourData.put("className", className);
+        hourData.put("classText", classText);
+        hourData.put("hour", hourOfThisDay);
+        hourData.put("id", nonsenseId);
         dayAndHourData.put(hourOfThisDay, hourData);
-        System.out.println("added "+ hourData);
+        */
+        //System.out.println("added "+ hourData);
       } else {
-        System.out.println("selected empty: "+line);
+        //System.out.println("selected empty: "+line);
       }
     } else {
       System.out.println("selecionou empty: "+line);
     }
-    if (c<50 && debugMode) {
+    if (c<100 && debugMode) {
       //if (!hourData.isEmpty()) {System.out.println(dayAndHourData);}
       //System.out.println(trueDayName);
       //System.out.println(line.parent().tag());
     } else {
       System.out.println("----------------------");
-      System.out.println(dayAndHourData);
+      System.out.println(classesData);
       break;
     }
     c+=1;
