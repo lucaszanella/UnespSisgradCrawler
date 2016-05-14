@@ -43,16 +43,12 @@ public class SisgradCrawler {
  private URL mountMessageLink(String id, int page) throws IOException {
   return (new URL(this.protocol + "://" + this.domain + "/" + "sentinela" + "/" + "sentinela.viewMessage.action?txt_id=" + id + "&emailTipo=recebidas"));
  }
- public SisgradCrawler() throws Exception {
-  if (magicalNumber != null) {
-   this.magicalNumber = magicalNumber;
-   this.alreadyLoadedMagicalNumber = true;
-  }
+ public SisgradCrawler(String username, String password) {
+   this.username = username;
+   this.password = password;
  }
- public void loginToSentinela(String username, String password) throws Exception {
+ public void loginToSentinela() throws Exception {
   //Mounts POST query that's gonna be sent to the login page
-  this.username = username;
-  this.password = password;
   this.domain = domain;
   String postQuery = "txt_usuario=" + URLEncoder.encode(username, "UTF-8") + "&" + "txt_senha=" + URLEncoder.encode(password, "UTF-8");
   if (debugMode) {
@@ -166,27 +162,26 @@ public class SisgradCrawler {
   return messagesList;
   //System.out.println(pageToReadMessages.response);
  }
- public List < Map < String, String >> getClasses() throws Exception {
+ public Map<String, String> getMessage(String messageId) throws Exception {
+  URL getMessagesURL = new URL(this.protocol + "://" + this.domain + "/" + "sentinela" + "/" + "sentinela.viewMessage.action?txt_id="+messageId+"&emailTipo=recebidas");
+  SimpleRequest messageRequest = new SimpleRequest(getMessagesURL, new String(), this.cookies);
+  Document doc = Jsoup.parse(messageRequest.response);
+  Element messageForm = doc.select("form").get(0);
+  Element messageTable = messageForm.select("table").get(0);
+  String message = messageTable.select("tr").get(3).text();
+  Map<String, String> a = new HashMap<String,String>();
+  a.put("message", message);
+  return a;
+ }
+  
+ public Map<String, List<Map<String, String>>> getClasses() throws Exception {
   List < Map < String, String >> a = new ArrayList < Map < String, String >> ();
   URL getClassesURL = new URL(this.protocol + "://" + this.domain + "/" + "academico" + "/aluno/cadastro.horarioAulas.action");
   SimpleRequest classesRequest = new SimpleRequest(getClassesURL, new String(), this.cookies);
-  /*
-  System.out.println("getClasses() response: "+classesRequest.response);
-  System.out.println("getClasses() code: "+classesRequest.responseMessage);
-  System.out.println("getClasses() location: "+classesRequest.location);
-  */
+
   SimpleRequest classesRequestRedirected = new SimpleRequest(new URL(classesRequest.location), new String(), this.cookies);
-  /*
-  System.out.println("getClasses() response: "+classesRequestRedirected.response);
-  System.out.println("getClasses() code: "+classesRequestRedirected.responseMessage);
-  System.out.println("getClasses() location: "+classesRequestRedirected.location);
-  */
   SimpleRequest classesRequestRedirectedAgain = new SimpleRequest(new URL(classesRequestRedirected.location), new String(), this.cookies);
-  /*
-  System.out.println("getClasses() response: "+classesRequestRedirectedAgain.response);
-  System.out.println("getClasses() code: "+classesRequestRedirectedAgain.responseMessage);
-  System.out.println("getClasses() location: "+classesRequestRedirectedAgain.location);
-  */
+   
   Document doc = Jsoup.parse(classesRequestRedirectedAgain.response);
   Elements tableOriginal = doc.getElementsByClass("listagem quadro");
   Element table = doc.select("table").get(1);
@@ -233,61 +228,7 @@ public class SisgradCrawler {
     } else {
       System.out.println("selecionou empty: "+line);
     }
-    if (c<100 && debugMode) {
-      //if (!hourData.isEmpty()) {System.out.println(dayAndHourData);}
-      //System.out.println(trueDayName);
-      //System.out.println(line.parent().tag());
-    } else {
-      System.out.println("----------------------");
-      System.out.println(classesData);
-      break;
-    }
-    c+=1;
   }
-  
-  /*
-  Map<String, String> segundaFeira = new HashMap<String, String>();
-  Map<String, String> tercaFeira = new HashMap<String, String>();
-  Map<String, String> quartaFeira = new HashMap<String, String>();
-  Map<String, String> quintaFeira = new HashMap<String, String>();
-  Map<String, String> sextaFeira = new HashMap<String, String>();
-  Map<String, String> sabado = new HashMap<String, String>(); 
-  Elements hours = table.select("tr");
-  int c = 0;
-  for (Element hour: hours) {
-    String SingleHour = hour.select("th").get(0).select("center").html();
-    if (c<4 && debugMode) {
-      //System.out.println(SingleHour);
-    } else {
-      break;
-    }
-    c+=1;
-    Elements days = hour.select("td");
-    //System.out.println("days "+days);
-    for (Element day : days) {
-      String dayName = day.attr("id");
-      Pattern r = Pattern.compile("[A-Za-z]*");
-      Matcher m = r.matcher(dayName);
-      String trueDayName = "";
-      if (m.find()) {trueDayName = m.group();} else {System.out.println("Didn't find anything at: "+dayName);}
-      switch (trueDayName) {
-        case "SEGUNDA":
-          
-      }
-      //if (Pattern.compile(Pattern.quote("segunda"), Pattern.CASE_INSENSITIVE).matcher(singleDay).find()){System.out.println("contém segunda");}
-      //if (singleDay.contains("SEGUNDA")) {System.out.println("contém segunda");}
-      //System.out.println(dayName);
-    }
-  }
-  */
-  
-  //Elements table2 = doc.getElementsByClass("listagem");
-  //Elements tableElements = table.select("tbody");
-  //System.out.println(classesRequestRedirectedAgain.response);
-  //System.out.println(table);
-  //System.out.println(tables); 
-  //System.out.println(hours.get(1));
-  //a.add(classesRequest.response);
-  return (a);
+  return (classesData);
  }
 }

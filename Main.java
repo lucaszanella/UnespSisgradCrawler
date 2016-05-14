@@ -47,13 +47,14 @@ public class Main {
    final String username = parts[0].split("=")[1];
    final String password = parts[1].split("=")[1];
    //final String magicalNumber = "4827107";
-   final SisgradCrawler login = new SisgradCrawler();
-   login.loginToSentinela(username, password);
+   final SisgradCrawler login = new SisgradCrawler(username, password);
+   login.loginToSentinela();
    System.out.println("logged in, now gonna push content from server");
    List < Thread > requestThreads = new ArrayList < Thread > ();
    //initializeMessageLoaderThread(requestThreads, login, 0);
    login.loginToAcademico();
-   List < Map < String, String >> getClassesRequest = login.getClasses();
+   Map<String, List<Map<String, String>>> getClassesRequest = login.getClasses();
+   System.out.println(login.getMessage("19447150").get("message"));
    //System.out.println(readFile("test.txt")); ENCODING TEST
    //System.out.println("á teste lol ã que");
    //initializeMessageLoaderThread(requestThreads, login, 1);
