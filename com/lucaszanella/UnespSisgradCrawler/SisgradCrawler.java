@@ -21,6 +21,10 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
 public class SisgradCrawler {
  private Boolean debugMode = true;
  public String username;
@@ -151,6 +155,11 @@ public class SisgradCrawler {
     messageRow.put("messageId", messageId);
     messageRow.put("sentDate", sentDate);
     messageRow.put("readDate", readDate);
+    String dateString = sentDate.split("\\.")[0];
+    DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
+    Date date = dateFormat.parse(dateString);
+    long unixTime = (long) date.getTime()/1000;
+    messageRow.put("sentDateUnix", String.valueOf(unixTime));
     messagesList.add(messageRow);
     //System.out.println();
    } else {

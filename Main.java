@@ -54,7 +54,9 @@ public class Main {
    //initializeMessageLoaderThread(requestThreads, login, 0);
    login.loginToAcademico();
    Map<String, List<Map<String, String>>> getClassesRequest = login.getClasses();
-   System.out.println(login.getMessage("19447150").get("message"));
+   
+   System.out.println(login.getMessages(0));
+   //System.out.println(login.getMessage("19447150").get("message"));
    //System.out.println(readFile("test.txt")); ENCODING TEST
    //System.out.println("á teste lol ã que");
    //initializeMessageLoaderThread(requestThreads, login, 1);
