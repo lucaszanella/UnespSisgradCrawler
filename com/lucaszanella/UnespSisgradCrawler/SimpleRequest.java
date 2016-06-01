@@ -2,6 +2,7 @@ package com.lucaszanella.UnespSisgradCrawler;
 
 import java.net.URL;
 import java.io.*;
+
 import javax.net.ssl.HttpsURLConnection;
 //import org.jsoup.*;
 import java.net.URLEncoder;
@@ -18,72 +19,86 @@ import java.io.IOException;
 
 //System.setProperty("jsse.enableSNIExtension", "false"); CONSERTAR ESTE PROBLEMA
 public class SimpleRequest {
- public String response;
- public String responseCode;
- public String responseMessage;
- public String location;
- public List < String > cookies;
- public Boolean debugMode = false;
+    public String response;
+    public String responseCode;
+    public String responseMessage;
+    public String location;
+    public List<String> cookies;
+    public Boolean debugMode = false;
 
- public SimpleRequest(URL url, String postQuery, List < List < String > > listOfCookiesList) throws Exception {
-  if (debugMode) {System.out.println("calling " + url);}
-  //System.out.println("query "+postQuery);
-  if (debugMode) {System.out.println("cookies " + listOfCookiesList);}
-  List < String > _cookies = new ArrayList < String > ();
-  if (listOfCookiesList != null) {
-   //Choose the cookies that match the path being requested
-   for (List < String > cookieList: listOfCookiesList) {
-    for (String singleCookie: cookieList) {
-     String search = singleCookie.split("Path")[1].split("/")[1];
-     if (debugMode) {System.out.println("search "+search);}
-     if (url.getPath().split("/")[1].contains(search)) { //ANALISAR URL COM CUIDADO
-      _cookies = cookieList;
-      if (debugMode) {System.out.println("chose "+search);}
-      if (debugMode) {System.out.println("url.getPath() cutted: "+url.getPath().split("/")[1]);}
-     }
+    public SimpleRequest(URL url, String postQuery, List<List<String>> listOfCookiesList) throws Exception {
+        if (debugMode) {
+            System.out.println("calling " + url);
+        }
+        //System.out.println("query "+postQuery);
+        if (debugMode) {
+            System.out.println("cookies " + listOfCookiesList);
+        }
+        List<String> _cookies = new ArrayList<String>();
+        if (listOfCookiesList != null) {
+            //Choose the cookies that match the path being requested
+            for (List<String> cookieList : listOfCookiesList) {
+                for (String singleCookie : cookieList) {
+                    String search = singleCookie.split("Path")[1].split("/")[1];
+                    if (debugMode) {
+                        System.out.println("search " + search);
+                    }
+                    if (url.getPath().split("/")[1].contains(search)) { //ANALISAR URL COM CUIDADO
+                        _cookies = cookieList;
+                        if (debugMode) {
+                            System.out.println("chose " + search);
+                        }
+                        if (debugMode) {
+                            System.out.println("url.getPath() cutted: " + url.getPath().split("/")[1]);
+                        }
+                    }
+                }
+            }
+        }
+        if (debugMode) {
+            System.out.println("cookie being used: " + _cookies);
+        }
+        HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
+        con.setInstanceFollowRedirects(false);
+        con.setRequestProperty("Content-length", String.valueOf(postQuery.length()));
+        con.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+        con.setRequestProperty("User-Agent", "Mozilla/5.0 (compatible; MSIE 5.0;Windows98;DigExt)");
+        con.setDoInput(true);
+        if (_cookies != null) {
+            for (String cookie : _cookies) {
+                con.addRequestProperty("Cookie", cookie.split(";", 2)[0]);
+            }
+        }
+        if (postQuery != null) {
+            con.setDoOutput(true);
+            con.setRequestMethod("POST");
+            DataOutputStream output = new DataOutputStream(con.getOutputStream());
+            output.writeBytes(postQuery);
+            output.close(); //VERIFICAR ISSO!
+        }
+
+        //DataInputStream dis = new DataInputStream( con.getInputStream() );
+        String charset = "UTF-8";
+        BufferedReader buff = new BufferedReader(
+                new InputStreamReader(con.getInputStream(), charset));
+        String response = "";
+        String line;
+        while ((line = buff.readLine()) != null) {
+            this.response += line + "\n";
+        }
+
+        //use inputLine.toString(); here it would have whole source
+        //String response = inputLine.toString();
+
+        this.cookies = con.getHeaderFields().get("Set-Cookie");
+        if (debugMode) {
+            System.out.println("Cookies got: " + this.cookies);
+        }
+        this.responseCode = Integer.toString(con.getResponseCode());
+        //List<String> location = new List<String>();
+        this.responseMessage = con.getResponseMessage();
+        if (responseCode.equals("302")) {
+            this.location = con.getHeaderFields().get("Location").get(0);
+        }
     }
-   }
-  }
-  if (debugMode) {System.out.println("cookie being used: " + _cookies);}
-  HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
-  con.setInstanceFollowRedirects(false);
-  con.setRequestProperty("Content-length", String.valueOf(postQuery.length()));
-  con.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-  con.setRequestProperty("User-Agent", "Mozilla/5.0 (compatible; MSIE 5.0;Windows98;DigExt)");
-  con.setDoInput(true);
-  if (_cookies != null) {
-   for (String cookie: _cookies) {
-    con.addRequestProperty("Cookie", cookie.split(";", 2)[0]);
-   }
-  }
-  if (postQuery != null) {
-   con.setDoOutput(true);
-   con.setRequestMethod("POST");
-   DataOutputStream output = new DataOutputStream(con.getOutputStream());
-   output.writeBytes(postQuery);
-   output.close(); //VERIFICAR ISSO!
-  }
-
-  //DataInputStream dis = new DataInputStream( con.getInputStream() ); 
-  String charset = "UTF-8";
-  BufferedReader buff = new BufferedReader(
-   new InputStreamReader(con.getInputStream(), charset));
-  String response = "";
-  String line;
-  while ((line = buff.readLine()) != null) {
-   this.response += line + "\n";
-  }
-
-  //use inputLine.toString(); here it would have whole source
-  //String response = inputLine.toString();
-
-  this.cookies = con.getHeaderFields().get("Set-Cookie");
-  if (debugMode) {System.out.println("Cookies got: " + this.cookies);}
-  this.responseCode = Integer.toString(con.getResponseCode());
-  //List<String> location = new List<String>();
-  this.responseMessage = con.getResponseMessage();
-  if (responseCode.equals("302")) {
-   this.location = con.getHeaderFields().get("Location").get(0);
-  }
- }
 }
