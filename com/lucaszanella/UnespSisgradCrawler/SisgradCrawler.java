@@ -171,7 +171,7 @@ public class SisgradCrawler {
         return messagesList;
         //System.out.println(pageToReadMessages.response);
     }
-    public Map<String, String> getMessage(String messageId) throws Exception {
+    public Map<String, String> getMessage(String messageId, Boolean html) throws Exception {
         //System.out.println("hi, i'm getting message for id "+ messageId );
         URL getMessagesURL = new URL(this.protocol + "://" + this.domain + "/" + "sentinela" + "/" + "sentinela.viewMessage.action?txt_id="+messageId+"&emailTipo=recebidas");
         System.out.println(" the url is "+ getMessagesURL.toString());
@@ -180,7 +180,12 @@ public class SisgradCrawler {
         Document doc = Jsoup.parse(messageRequest.response);
         Element messageForm = doc.select("form").get(0);
         Element messageTable = messageForm.select("table").get(0);
-        String message = messageTable.select("tr").get(3).text();
+        String message;
+        if (!html) {
+          message = messageTable.select("tr").get(3).text();
+        } else {
+          message = messageTable.select("tr").get(3).html();
+        }
         Map<String, String> a = new HashMap<String,String>();
         a.put("message", message);
         System.out.println("the message is "+ message);
