@@ -44,10 +44,9 @@ public class Main {
    //Read username information from account.txt
    final String login_data = readFile("account.txt");
    String[] parts = login_data.split("\\r?\\n");
-   final String username = parts[0].split("=")[1];
-   final String password = parts[1].split("=")[1];
-   //final String magicalNumber = "4827107";
-   final SisgradCrawler login = new SisgradCrawler(username, password);
+   String username = parts[0].split("=")[1];
+   String password = parts[1].split("=")[1];
+   SisgradCrawler login = new SisgradCrawler(username, password);
    login.loginToSentinela();
    System.out.println("logged in, now gonna push content from server");
    List < Thread > requestThreads = new ArrayList < Thread > ();
@@ -55,11 +54,9 @@ public class Main {
    login.loginToAcademico();
    Map<String, List<Map<String, String>>> getClassesRequest = login.getClasses();
    
-   //System.out.println(login.getMessages(0));
-   System.out.println(login.getMessage("17991022", true).get("message"));
-   //System.out.println(readFile("test.txt")); ENCODING TEST
-   //System.out.println("á teste lol ã que");
-   //initializeMessageLoaderThread(requestThreads, login, 1);
+   String mId = login.getMessages(0).get(0).get("messageId");
+   System.out.println(login.getMessage(mId, true).get("message"));
+   System.out.println(getClassesRequest);
    //SimpleRequest classesRequest = new SimpleRequest(domain+"/"+classesPage, new String(), login.cookies);
    //System.out.println(classesRequest.response);
    //System.out.println(login.getClasses());
