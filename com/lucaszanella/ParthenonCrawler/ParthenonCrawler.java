@@ -1,6 +1,7 @@
 package com.lucaszanella.ParthenonCrawler;
 
-import com.lucaszanella.UnespSisgradCrawler.*;
+import com.lucaszanella.UnespSisgradCrawler.SisgradCrawler;
+import com.lucaszanella.SimpleRequest.SimpleRequest;
 
 public class ParthenonCrawler {
     
