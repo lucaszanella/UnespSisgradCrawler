@@ -1,2 +1,0 @@
-username=41420650840
-password=1133
