@@ -1,21 +1,23 @@
 # UnespSisgradCrawler
-Este projeto contém:
-- Um script em Java que permite navegar pelo Sisgrad (o sistema de graduação da Unesp).
-- Um script em Python que permite navegar pelo Sisgrad.
-- WebApp que facilita a navegação pelo Sisgrad, tendo o código em Java rodando num servidor. A intenção era fazer um webapp 
-que se conectasse direto à Unesp, mas a política da mesma origem dos navegadores impede isso.
+This is a project in pure java that offers webcrawling functionalities for Unesp's Sisgrad, Parthenon and Lattes (this last one is not exclusive of Unesp). By now, the crawlers only support the basic funcitonalities required in the sisgrad app, with more to come with time. Feel free to contribute by writing new functionalities.
 
-# Como usar:
-Basta criar um arquivo com nome account.txt e inserir o seguinte texto:
 
-user=seu_usuario
+# Building:
 
-password=sua_senha
+Just clone the repository and build with gradle 
+```
+git clone https://github.com/lucaszanella/UnespSisgradCrawler
+cd UnespSisgradCrawler
+gradle build
+```
 
-E rodar tanto o código em python como em java. Ambos são independentes.
 
-# Compilando e rodando o java:
+# Usage:
+Just create a text file named account.txt in /UnespSisgradCrawler with the following:
 
-javac -encoding UTF-8 -cp ".:jsoup-1.8.3.jar" com/lucaszanella/SimpleRequest/SimpleRequest.java com/lucaszanella/UnespSisgradCrawler/SisgradCrawler.java Main.java
+```
+user=your_user
+password=your_password
+```
 
-java -cp ".:jsoup-1.8.3.jar" Main
+Then run Main to see how it works. 
