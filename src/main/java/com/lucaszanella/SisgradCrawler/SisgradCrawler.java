@@ -1,31 +1,25 @@
-package com.lucaszanella.UnespSisgradCrawler;
+package com.lucaszanella.SisgradCrawler;
 
-import com.lucaszanella.SimpleRequest.SimpleRequest;
-
-import java.net.URL;
-import java.io.*;
-import javax.net.ssl.HttpsURLConnection;
-import java.net.URLEncoder;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.ArrayList;
-import java.util.List;
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
-
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.Arrays;
+import com.lucaszanella.SimpleRequest.SimpleHTTPSRequest;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
+import java.io.IOException;
+import java.net.URL;
+import java.net.URLEncoder;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class SisgradCrawler {
     private Boolean debugMode = false;
@@ -35,8 +29,8 @@ public class SisgradCrawler {
     private static String domain = "sistemas.unesp.br";
     private String magicalNumber;
     private Boolean alreadyLoadedMagicalNumber = false;
-    private SimpleRequest sisgradRequest = new SimpleRequest();
-  
+    private SimpleHTTPSRequest sisgradRequest = new SimpleHTTPSRequest();
+
     private URL mountMessagePage(int page, String magicalNumber) throws IOException {
         String thingsInTheEnd;
         if (page != 0) {
@@ -61,7 +55,7 @@ public class SisgradCrawler {
             System.out.println("logging in to sentinela");
         }
         URL sentinelaLogin = new URL(this.protocol + "://" + this.domain + "/" + "sentinela" + "/" + "login.action");
-        SimpleRequest.requestObject loginRequest = sisgradRequest.SimpleRequest(sentinelaLogin, postQuery); //calls the login url, POSTing the query with user and password
+        SimpleHTTPSRequest.requestObject loginRequest = sisgradRequest.SimpleHTTPSRequest(sentinelaLogin, postQuery); //calls the login url, POSTing the query with user and password
         String locationRedirect = loginRequest.location;
     }
     public void loginToAcademico() throws Exception {
@@ -69,11 +63,11 @@ public class SisgradCrawler {
             System.out.println("logging in to academico");
         }
         URL academicoLogin = new URL(this.protocol + "://" + this.domain + "/" + "sentinela" + "/" + "sentinela.acessarSistema.action?id=3");
-        SimpleRequest.requestObject loginRequest = sisgradRequest.SimpleRequest(academicoLogin, null); //calls the login url from academico's page
+        SimpleHTTPSRequest.requestObject loginRequest = sisgradRequest.SimpleHTTPSRequest(academicoLogin, null); //calls the login url from academico's page
         URL locationRedirect = new URL(loginRequest.location);
-        SimpleRequest.requestObject pageafterLogin = sisgradRequest.SimpleRequest(locationRedirect, new String()); //calls the login url from academico's page
+        SimpleHTTPSRequest.requestObject pageafterLogin = sisgradRequest.SimpleHTTPSRequest(locationRedirect, new String()); //calls the login url from academico's page
     }
-    public String getMagicalNumber(SimpleRequest.requestObject page) {
+    public String getMagicalNumber(SimpleHTTPSRequest.requestObject page) {
         Document doc = Jsoup.parse(page.response);
         Elements pageNumbers = doc.getElementsByClass("listagemTopo");
         Elements pageLinks = pageNumbers.select("a");
@@ -86,25 +80,25 @@ public class SisgradCrawler {
         return magicalNumber;
     }
     public List < Map < String, String >> getMessages(int page) throws Exception {
-        //SimpleRequest firstScreenAfterLoginRequest = new SimpleRequest(locationRedirect, new String(), this.cookies);
-        SimpleRequest.requestObject pageToReadMessages;
+        //SimpleHTTPSRequest firstScreenAfterLoginRequest = new SimpleHTTPSRequest(locationRedirect, new String(), this.cookies);
+        SimpleHTTPSRequest.requestObject pageToReadMessages;
         if (page == 0) {
             if (debugMode) {
                 System.out.println("getting page 0");
             }
-            pageToReadMessages = sisgradRequest.SimpleRequest(mountMessagePage(0, ""), null);
+            pageToReadMessages = sisgradRequest.SimpleHTTPSRequest(mountMessagePage(0, ""), null);
             this.magicalNumber = getMagicalNumber(pageToReadMessages);
             this.alreadyLoadedMagicalNumber = true;
         } else if (this.alreadyLoadedMagicalNumber) {
             if (debugMode) {
                 System.out.println("already loaded page magicalNumber before, now getting page " + page);
             }
-            pageToReadMessages = sisgradRequest.SimpleRequest(mountMessagePage(page, this.magicalNumber), null);
+            pageToReadMessages = sisgradRequest.SimpleHTTPSRequest(mountMessagePage(page, this.magicalNumber), null);
         } else {
             if (debugMode) {
                 System.out.println("didn't load magicalNumber before, gonna get the first page to get magicalNumber and then load the page " + page);
             }
-            SimpleRequest.requestObject magicalNumberRequest = sisgradRequest.SimpleRequest(mountMessagePage(0, ""), null); //Yes, I really need to load this page first just to get the magicalNumber that ables me to get the other pages
+            SimpleHTTPSRequest.requestObject magicalNumberRequest = sisgradRequest.SimpleHTTPSRequest(mountMessagePage(0, ""), null); //Yes, I really need to load this page first just to get the magicalNumber that ables me to get the other pages
             if (debugMode) {
                 System.out.println("Setting up magical number: " + getMagicalNumber(magicalNumberRequest));
             }
@@ -113,7 +107,7 @@ public class SisgradCrawler {
             if (debugMode) {
                 System.out.println("already loaded magicalNumber, now gonna get new page: " + page);
             }
-            pageToReadMessages = sisgradRequest.SimpleRequest(mountMessagePage(page, this.magicalNumber), null);
+            pageToReadMessages = sisgradRequest.SimpleHTTPSRequest(mountMessagePage(page, this.magicalNumber), null);
             this.alreadyLoadedMagicalNumber = true;
         }
         //System.out.println("-----------------------------");
@@ -161,33 +155,74 @@ public class SisgradCrawler {
         return messagesList;
         //System.out.println(pageToReadMessages.response);
     }
-    public Map<String, String> getMessage(String messageId, Boolean html) throws Exception {
+    public class GetMessageResponse{
+        public String author;
+        public String title;
+        public String message;
+        public Map<String, String> attachments;
+        public GetMessageResponse(String author, String title, String message, Map<String, String> attachments) {
+            this.author = author;
+            this.title = title;
+            this.message = message;
+            this.attachments = attachments;
+        }
+    }
+    public GetMessageResponse getMessage(String messageId, Boolean html) throws Exception {//this method is a mess. TODO: make it better
         //System.out.println("hi, i'm getting message for id "+ messageId );
         URL getMessagesURL = new URL(this.protocol + "://" + this.domain + "/" + "sentinela" + "/" + "sentinela.viewMessage.action?txt_id="+messageId+"&emailTipo=recebidas");
         if (debugMode) {System.out.println(" the url is "+ getMessagesURL.toString());}
-        SimpleRequest.requestObject messageRequest = sisgradRequest.SimpleRequest(getMessagesURL, null);
+        SimpleHTTPSRequest.requestObject messageRequest = sisgradRequest.SimpleHTTPSRequest(getMessagesURL, null);
         Document doc = Jsoup.parse(messageRequest.response);
-        Element messageForm = doc.select("form").get(0);
+        Element messageForm = doc.select("form").get(0);//gets the first form. TODO: change this to get the largest form or something like that
         Element messageTable = messageForm.select("table").get(0);
-        String message;
-        if (!html) {
-          message = messageTable.select("tr").get(3).text();
-        } else {
-          message = messageTable.select("tr").get(3).html();
+        Elements messageTableRows = messageForm.select("tr");
+        Element attachments = null;
+        //System.out.println("messageTableRows: "+messageTableRows.html());
+        Boolean containsAttachments = false;
+        Map<String, String> attachmentsList = new HashMap<String, String>();
+        for (Element messageTableRow: messageTableRows) {
+            //System.out.println("messageTableRow being analyzed: "+messageTableRow.html());
+            Elements linksOfAttachments = messageTableRow.select("td").select("a");
+            if (messageTableRow.select("td").text().toLowerCase().contains("anexo")) {
+                containsAttachments = true;
+                //System.out.println("contains link");
+                //a.put("attachments", )
+                //Elements attachmentLinks = linksOfAttachments.select("a");
+                for (Element linkOfAttachment:linksOfAttachments) {
+                    System.out.println("linkOfAttachment: "+linkOfAttachment.html()+"attr: "+linkOfAttachment.attr("href"));
+                    attachmentsList.put(linkOfAttachment.text(),linkOfAttachment.attr("href"));
+                }
+            }
         }
-        Map<String, String> a = new HashMap<String,String>();
-        a.put("message", message);
+        String message;
+        int trNumber;//number of the <tr> tag in which message is contained
+        if (containsAttachments) {
+            trNumber = 4;
+        } else {
+            trNumber = 3;
+            attachmentsList = null;
+        }
+        if (!html) {
+            message = messageTable.select("tr").get(trNumber).text();
+        } else {
+            message = messageTable.select("tr").get(trNumber).html();
+        }
+        //Map<String, String> a = new HashMap<String,String>();
+        //a.put("message", message);
+
         if (debugMode) {System.out.println("the message is "+ message);}
-        return a;
+        String author = "";
+        String title = "";
+        return new GetMessageResponse(author, title, message, attachmentsList);
     }
 
     public Map<String, List<Map<String, String>>> getClasses() throws Exception {
         List < Map < String, String >> a = new ArrayList < Map < String, String >> ();
         URL getClassesURL = new URL(this.protocol + "://" + this.domain + "/" + "academico" + "/aluno/cadastro.horarioAulas.action");
-        SimpleRequest.requestObject classesRequest = sisgradRequest.SimpleRequest(getClassesURL, null);
+        SimpleHTTPSRequest.requestObject classesRequest = sisgradRequest.SimpleHTTPSRequest(getClassesURL, null);
 
-        SimpleRequest.requestObject classesRequestRedirected = sisgradRequest.SimpleRequest(new URL(classesRequest.location), null);
-        SimpleRequest.requestObject classesRequestRedirectedAgain = sisgradRequest.SimpleRequest(new URL(classesRequestRedirected.location), null);
+        SimpleHTTPSRequest.requestObject classesRequestRedirected = sisgradRequest.SimpleHTTPSRequest(new URL(classesRequest.location), null);
+        SimpleHTTPSRequest.requestObject classesRequestRedirectedAgain = sisgradRequest.SimpleHTTPSRequest(new URL(classesRequestRedirected.location), null);
 
         Document doc = Jsoup.parse(classesRequestRedirectedAgain.response);
         Elements tableOriginal = doc.getElementsByClass("listagem quadro");

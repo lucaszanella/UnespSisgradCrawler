@@ -1,4 +1,4 @@
-import com.lucaszanella.UnespSisgradCrawler.*;
+import com.lucaszanella.SisgradCrawler.*;
 
 import java.net.URL;
 import java.io.*;
@@ -17,7 +17,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
-public class Main {
+public class MainSisgrad {
  static Boolean debugMode = true;
  public static void initializeMessageLoaderThread(List < Thread > threads, final SisgradCrawler sisgrad, final int page) {
   Thread t = new Thread() {
@@ -55,8 +55,9 @@ public class Main {
    Map<String, List<Map<String, String>>> getClassesRequest = login.getClasses();
    
    String mId = login.getMessages(0).get(0).get("messageId");
-   System.out.println(login.getMessage(mId, true).get("message"));
-   System.out.println(getClassesRequest);
+   //System.out.println(login.getMessage("20055868", true).attachments);
+   System.out.println(login.getMessage("20086397", true).attachments);
+   //System.out.println(getClassesRequest);
    //SimpleRequest classesRequest = new SimpleRequest(domain+"/"+classesPage, new String(), login.cookies);
    //System.out.println(classesRequest.response);
    //System.out.println(login.getClasses());

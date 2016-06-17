@@ -18,7 +18,7 @@ import java.io.IOException;
 //
 
 //System.setProperty("jsse.enableSNIExtension", "false"); CONSERTAR ESTE PROBLEMA
-public class SimpleRequest {
+public class SimpleHTTPSRequest {
     /*
     public String response;
     public String responseCode;
@@ -27,8 +27,7 @@ public class SimpleRequest {
     */
     public List < List < String >> cookies = new ArrayList < List < String >> ();//list of all cookies that will be received during all requests
     public Boolean debugMode = false;
-    public SimpleRequest () {
-      
+    public SimpleHTTPSRequest () {
     }
   public class requestObject {
     public String response;
@@ -44,7 +43,10 @@ public class SimpleRequest {
         this.cookies = cookies;
       }
   }
-    public requestObject SimpleRequest(URL url, String postQuery) throws Exception {
+    public List < List < String >> getCookies () {
+      return this.cookies;
+    }
+    public requestObject SimpleHTTPSRequest(URL url, String postQuery) throws Exception {
         List<String> responseCookies;//cookies for this specific request
         if (debugMode) {
             System.out.println("calling " + url);
@@ -63,7 +65,13 @@ public class SimpleRequest {
                     System.out.println("inside cookies: " + cookieList);
                 }
                 for (String singleCookie : cookieList) {
-                    String search = singleCookie.split("Path")[1].split("/")[1];
+                    //System.out.println("single cookie is: "+singleCookie);
+                    String search = "";
+                    try {
+                      search = singleCookie.split("Path")[1].split("/")[1];
+                    } catch (Exception e) {
+                      System.out.println("exception in cookie cutting, maybe it was Path=/ or cookie doesn't have 'Path'");
+                    }
                     if (debugMode) {
                         System.out.println("search " + search);
                     }
@@ -86,7 +94,6 @@ public class SimpleRequest {
         if (debugMode) {
             System.out.println("cookie being used: " + requestCookies);
         }
-
         HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
         con.setInstanceFollowRedirects(false);
         if (postQuery != null) {

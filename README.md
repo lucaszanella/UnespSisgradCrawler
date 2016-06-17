@@ -13,7 +13,7 @@ gradle build
 
 
 # Usage:
-Just create a text file named account.txt in /UnespSisgradCrawler with the following:
+Just create a text file named account.txt in /UnespSisgradCrawler/build/classes/main with the following:
 
 ```
 user=your_user

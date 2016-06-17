@@ -1,10 +1,10 @@
-import com.lucaszanella.UnespSisgradCrawler.*;
-import com.lucaszanella.ParthenonCrawler.*;
+import com.lucaszanella.ParthenonCrawler.ParthenonCrawler;
+
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 
-public class ParMain {
+public class MainParthenon {
     public static void main(String[] args) throws Exception{
       final String login_data = readFile("parthenon.txt");
       String[] parts = login_data.split("\\r?\\n");
