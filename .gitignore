@@ -13,3 +13,4 @@ ThreadTestings.java
 *.class
 /build
 /.gradle
+.gradle
