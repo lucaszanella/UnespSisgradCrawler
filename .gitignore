@@ -11,3 +11,5 @@ config.codeanywhere
 SisgradCrawler.class
 ThreadTestings.java
 *.class
+/build
+/.gradle
