@@ -1,5 +1,10 @@
 apply plugin: 'java'
 
+allprojects {
+    sourceCompatibility = 1.7
+    targetCompatibility = 1.7
+}
+
 repositories {
     mavenCentral()
 }
@@ -8,7 +13,4 @@ dependencies {
     compile 'org.jsoup:jsoup:1.8.3'
 }
 
-compileOptions {
-    sourceCompatibility JavaVersion.VERSION_1_7//jitpack uses jdk 8, so set compatibility to version 1.7 which generates bytecode 51
-    targetCompatibility JavaVersion.VERSION_1_7
-}
+
