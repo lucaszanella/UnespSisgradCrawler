@@ -1,5 +1,9 @@
 apply plugin: 'java'
-
+compileJava {
+    compileOptions {
+        compilerArgs << '-target 1.7'
+    }
+}
 repositories {
     mavenCentral()
 }
