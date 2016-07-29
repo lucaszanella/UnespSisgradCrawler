@@ -15,13 +15,12 @@ public class ParthenonCrawler {
     private SimpleHTTPSRequest parthenonRequest = new SimpleHTTPSRequest();
     public void doLogin(String username, String password) throws Exception{
         this.domain = domain;
-        String postQuery = "bor_id=" + URLEncoder.encode(username, "UTF-8") 
-          + "&" + "bor_verification=" + URLEncoder.encode(password, "UTF-8")
-          + "&" + "calling_system=" + URLEncoder.encode("", "UTF-8")
-          + "&" + "institute=" + URLEncoder.encode("UNESP", "UTF-8")
-          + "&" + "selfreg=" + URLEncoder.encode("", "UTF-8")
-          + "&" + "url=" + URLEncoder.encode("", "UTF-8");
-      
+        String postQuery = "bor_id=" + URLEncoder.encode(username, "UTF-8")
+                + "&" + "bor_verification=" + URLEncoder.encode(password, "UTF-8")
+                + "&" + "calling_system=" + URLEncoder.encode("", "UTF-8")
+                + "&" + "institute=" + URLEncoder.encode("UNESP", "UTF-8")
+                + "&" + "selfreg=" + URLEncoder.encode("", "UTF-8")
+                + "&" + "url=" + URLEncoder.encode("", "UTF-8");
         if (debugMode) {
             System.out.println("logging in to sentinela");
         }

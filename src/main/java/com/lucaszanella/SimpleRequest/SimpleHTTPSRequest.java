@@ -1,21 +1,16 @@
 package com.lucaszanella.SimpleRequest;
 
-import java.net.URL;
-import java.io.*;
-
 import javax.net.ssl.HttpsURLConnection;
-//import org.jsoup.*;
-import java.net.URLEncoder;
-import java.util.HashMap;
-import java.util.Map;
+import java.io.BufferedReader;
+import java.io.DataOutputStream;
+import java.io.InputStreamReader;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
+
+//import org.jsoup.*;
 
 //Just a Class designed to facilitate HTTPs requests to Unesp's Sisgrad server, that will return HTML pages as strings
-//
 
 //System.setProperty("jsse.enableSNIExtension", "false"); CONSERTAR ESTE PROBLEMA
 public class SimpleHTTPSRequest {
@@ -29,22 +24,22 @@ public class SimpleHTTPSRequest {
     public Boolean debugMode = false;
     public SimpleHTTPSRequest () {
     }
-  public class requestObject {
-    public String response;
-    public String responseCode;
-    public String responseMessage;
-    public String location;
-    public List<String> cookies;
-      public requestObject(String response, String responseCode, String responseMessage, String location, List<String> cookies) {
-        this.response = response;
-        this.responseCode = responseCode;
-        this.responseMessage = responseMessage;
-        this.location = location;
-        this.cookies = cookies;
-      }
-  }
+    public class requestObject {
+        public String response;
+        public String responseCode;
+        public String responseMessage;
+        public String location;
+        public List<String> cookies;
+        public requestObject(String response, String responseCode, String responseMessage, String location, List<String> cookies) {
+            this.response = response;
+            this.responseCode = responseCode;
+            this.responseMessage = responseMessage;
+            this.location = location;
+            this.cookies = cookies;
+        }
+    }
     public List < List < String >> getCookies () {
-      return this.cookies;
+        return this.cookies;
     }
     public requestObject SimpleHTTPSRequest(URL url, String postQuery) throws Exception {
         List<String> responseCookies;//cookies for this specific request
@@ -61,16 +56,16 @@ public class SimpleHTTPSRequest {
             //System.out.println("cookies not null");
 
             for (List<String> cookieList : this.cookies) {
-               if (debugMode) {
+                if (debugMode) {
                     System.out.println("inside cookies: " + cookieList);
                 }
                 for (String singleCookie : cookieList) {
                     //System.out.println("single cookie is: "+singleCookie);
                     String search = "";
                     try {
-                      search = singleCookie.split("Path")[1].split("/")[1];
+                        search = singleCookie.split("Path")[1].split("/")[1];
                     } catch (Exception e) {
-                      System.out.println("exception in cookie cutting, maybe it was Path=/ or cookie doesn't have 'Path'");
+                        System.out.println("exception in cookie cutting, maybe it was Path=/ or cookie doesn't have 'Path'");
                     }
                     if (debugMode) {
                         System.out.println("search " + search);
@@ -87,9 +82,9 @@ public class SimpleHTTPSRequest {
                 }
             }
         } else {
-          if (debugMode) {
+            if (debugMode) {
                 System.out.println("cookies is null");
-           }
+            }
         }
         if (debugMode) {
             System.out.println("cookie being used: " + requestCookies);
@@ -97,7 +92,7 @@ public class SimpleHTTPSRequest {
         HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
         con.setInstanceFollowRedirects(false);
         if (postQuery != null) {
-          con.setRequestProperty("Content-length", String.valueOf(postQuery.length()));
+            con.setRequestProperty("Content-length", String.valueOf(postQuery.length()));
         }
         con.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
         con.setRequestProperty("User-Agent", "Mozilla/5.0 (compatible; MSIE 5.0;Windows98;DigExt)");
@@ -140,10 +135,10 @@ public class SimpleHTTPSRequest {
             location = con.getHeaderFields().get("Location").get(0);
         }
         if (responseCookies != null) {
-           //System.out.println("adding following cookies: "+responseCookies);
-           this.cookies.add(responseCookies);
-           //System.out.println("this.cookies: "+this.cookies);
+            //System.out.println("adding following cookies: "+responseCookies);
+            this.cookies.add(responseCookies);
+            //System.out.println("this.cookies: "+this.cookies);
         }
-      return new requestObject(response, responseCode, responseMessage, location, responseCookies);
+        return new requestObject(response, responseCode, responseMessage, location, responseCookies);
     }
 }

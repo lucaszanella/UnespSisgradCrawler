@@ -1,16 +1,34 @@
 account.txt
 parthenon.txt
-test.txt
-Sisgrad.class
-Main.class
-oldMain.java
-oldMain.class
-Main2.class
-SimpleRequest.class
-config.codeanywhere
-SisgradCrawler.class
-ThreadTestings.java
+
+# Android built artifacts
+*.apk
+*.ap_
+*.dex
+
+# Java build artifacts class files
 *.class
-/build
-/.gradle
+
+# other generated files
+bin/
+gen/
+build/
+
+# local configuration file (for Android sdk path, etc)
+local.properties
+
+# OSX files
+.DS_Store
+
+# Eclipse project files
+.classpath
+.project
+
+# Android Studio
+*.iml
+.idea
 .gradle
+
+
+#NDK
+obj/

@@ -1,7 +1,6 @@
 package com.lucaszanella.SisgradCrawler;
 
 import com.lucaszanella.SimpleRequest.SimpleHTTPSRequest;
-
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -12,12 +11,7 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -260,7 +254,6 @@ public class SisgradCrawler {
         hourData.put("className", className);
         hourData.put("classText", classText);
         hourData.put("hour", hourOfThisDay);
-        hourData.put("id", nonsenseId);
         dayAndHourData.put(hourOfThisDay, hourData);
         */
                     //System.out.println("added "+ hourData);

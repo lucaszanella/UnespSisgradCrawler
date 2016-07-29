@@ -5,7 +5,6 @@ package com.lucaszanella.LattesCrawler;
  */
 
 import com.lucaszanella.SimpleRequest.SimpleHTTPRequest;
-
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -135,7 +134,6 @@ public class LattesCrawler {
                 + "&" + "filtros.regiaoAtividade=" + ZERO
                 + "&" + "filtros.ufAtividade=" + ZERO
                 + "&" + "filtros.nomeInstAtividade=" + EMPTY;
-
 
         URL searchPageToPostTo = new URL(this.protocol + "://" + this.domain + "" + magicalRequestPage);//post the search to this page
         SimpleHTTPRequest.requestObject lattesSearchPage = lattesRequest.SimpleHTTPRequest(searchPageToPostTo, postQuery);

@@ -9,9 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 //import org.jsoup.*;
-
 //Just a Class designed to facilitate HTTPs requests to Unesp's Sisgrad server, that will return HTML pages as strings
-//
 
 //System.setProperty("jsse.enableSNIExtension", "false"); CONSERTAR ESTE PROBLEMA
 public class SimpleHTTPRequest {
@@ -41,7 +39,7 @@ public class SimpleHTTPRequest {
         }
     }
     public List < List < String >> getCookies () {
-      return this.cookies;
+        return this.cookies;
     }
     public requestObject SimpleHTTPRequest(URL url, String postQuery) throws Exception {
         List<String> responseCookies;//cookies for this specific request
@@ -65,9 +63,9 @@ public class SimpleHTTPRequest {
                     //System.out.println("single cookie is: "+singleCookie);
                     String search = "";
                     try {
-                      search = singleCookie.split("Path")[1].split("/")[1];
+                        search = singleCookie.split("Path")[1].split("/")[1];
                     } catch (Exception e) {
-                      //System.out.println("exception in cookie cutting, maybe it was Path=/ or cookie doesn't have 'Path'");
+                        //System.out.println("exception in cookie cutting, maybe it was Path=/ or cookie doesn't have 'Path'");
                     }
                     if (debugMode) {
                         System.out.println("search " + search);
