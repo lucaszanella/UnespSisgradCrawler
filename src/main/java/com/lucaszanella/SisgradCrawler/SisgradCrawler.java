@@ -14,6 +14,7 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+//TODO: prepare this and other Crawlers to load all components in the page in order to perfectly simulate a computer access
 
 public class SisgradCrawler {
     private Boolean debugMode = false;
@@ -25,6 +26,7 @@ public class SisgradCrawler {
     private Boolean alreadyLoadedMagicalNumber = false;
     private SimpleHTTPSRequest sisgradRequest = new SimpleHTTPSRequest();
 
+    //mounts the URL to load a message page in the Sisgrad's webpage
     private URL mountMessagePage(int page, String magicalNumber) throws IOException {
         String thingsInTheEnd;
         if (page != 0) {
@@ -32,34 +34,36 @@ public class SisgradCrawler {
         } else {
             thingsInTheEnd = "";
         }
-        return (new URL(this.protocol + "://" + this.domain + "/" + "sentinela" + "/" + "sentinela.openMessage.action?emailTipo=recebidas" + thingsInTheEnd));
+        return (new URL(protocol + "://" + domain + "/" + "sentinela" + "/" + "sentinela.openMessage.action?emailTipo=recebidas" + thingsInTheEnd));
     }
     private URL mountMessageLink(String id, int page) throws IOException {
-        return (new URL(this.protocol + "://" + this.domain + "/" + "sentinela" + "/" + "sentinela.viewMessage.action?txt_id=" + id + "&emailTipo=recebidas"));
+        return (new URL(protocol + "://" + domain + "/" + "sentinela" + "/" + "sentinela.viewMessage.action?txt_id=" + id + "&emailTipo=recebidas"));
     }
+
     public SisgradCrawler(String username, String password) {
         this.username = username;
         this.password = password;
     }
+    //Logs to the 'sentinela' module inside Sisgrad's system. It's responsible to load messages.
     public void loginToSentinela() throws Exception {
         //Mounts POST query that's gonna be sent to the login page
-        this.domain = domain;
         String postQuery = "txt_usuario=" + URLEncoder.encode(username, "UTF-8") + "&" + "txt_senha=" + URLEncoder.encode(password, "UTF-8");
         if (debugMode) {
             System.out.println("logging in to sentinela");
         }
-        URL sentinelaLogin = new URL(this.protocol + "://" + this.domain + "/" + "sentinela" + "/" + "login.action");
+        URL sentinelaLogin = new URL(protocol + "://" + domain + "/" + "sentinela" + "/" + "login.action");
         SimpleHTTPSRequest.requestObject loginRequest = sisgradRequest.SimpleHTTPSRequest(sentinelaLogin, postQuery); //calls the login url, POSTing the query with user and password
         String locationRedirect = loginRequest.location;
     }
+    //Academico module is responsible to load things related to the student information like classes and so
     public void loginToAcademico() throws Exception {
         if (debugMode) {
             System.out.println("logging in to academico");
         }
-        URL academicoLogin = new URL(this.protocol + "://" + this.domain + "/" + "sentinela" + "/" + "sentinela.acessarSistema.action?id=3");
+        URL academicoLogin = new URL(protocol + "://" + domain + "/" + "sentinela" + "/" + "sentinela.acessarSistema.action?id=3");
         SimpleHTTPSRequest.requestObject loginRequest = sisgradRequest.SimpleHTTPSRequest(academicoLogin, null); //calls the login url from academico's page
-        URL locationRedirect = new URL(loginRequest.location);
-        SimpleHTTPSRequest.requestObject pageafterLogin = sisgradRequest.SimpleHTTPSRequest(locationRedirect, new String()); //calls the login url from academico's page
+        URL locationRedirect = new URL(loginRequest.location);//the login process requires HTTP redirection, which is disabled at SimpleHTTPSRequest
+        SimpleHTTPSRequest.requestObject pageafterLogin = sisgradRequest.SimpleHTTPSRequest(locationRedirect, null); //calls the next page just to simulate a computer access
     }
     public String getMagicalNumber(SimpleHTTPSRequest.requestObject page) {
         Document doc = Jsoup.parse(page.response);
@@ -73,6 +77,20 @@ public class SisgradCrawler {
         }
         return magicalNumber;
     }
+    //TODO: return this object instead of a list of maps, or at least evaluate this possibility
+    public class GetMessagesResponse{
+        public String author;
+        public String title;
+        public String message;
+        public Map<String, String> attachments;
+        public GetMessagesResponse(String author, String title, String message, Map<String, String> attachments) {
+            this.author = author;
+            this.title = title;
+            this.message = message;
+            this.attachments = attachments;
+        }
+    }
+    //Gets the messages from the system.
     public List < Map < String, String >> getMessages(int page) throws Exception {
         //SimpleHTTPSRequest firstScreenAfterLoginRequest = new SimpleHTTPSRequest(locationRedirect, new String(), this.cookies);
         SimpleHTTPSRequest.requestObject pageToReadMessages;
@@ -104,8 +122,7 @@ public class SisgradCrawler {
             pageToReadMessages = sisgradRequest.SimpleHTTPSRequest(mountMessagePage(page, this.magicalNumber), null);
             this.alreadyLoadedMagicalNumber = true;
         }
-        //System.out.println("-----------------------------");
-        //System.out.println(pageToReadMessages.response.substring(25000,50000));
+
         Document doc = Jsoup.parse(pageToReadMessages.response);
         Element table = doc.getElementById("destinatario");
         Elements messages = table.getElementsByTag("tr");
@@ -163,7 +180,7 @@ public class SisgradCrawler {
     }
     public GetMessageResponse getMessage(String messageId, Boolean html) throws Exception {//this method is a mess. TODO: make it better
         //System.out.println("hi, i'm getting message for id "+ messageId );
-        URL getMessagesURL = new URL(this.protocol + "://" + this.domain + "/" + "sentinela" + "/" + "sentinela.viewMessage.action?txt_id="+messageId+"&emailTipo=recebidas");
+        URL getMessagesURL = new URL(protocol + "://" + domain + "/" + "sentinela" + "/" + "sentinela.viewMessage.action?txt_id="+messageId+"&emailTipo=recebidas");
         if (debugMode) {System.out.println(" the url is "+ getMessagesURL.toString());}
         SimpleHTTPSRequest.requestObject messageRequest = sisgradRequest.SimpleHTTPSRequest(getMessagesURL, null);
         Document doc = Jsoup.parse(messageRequest.response);
@@ -210,9 +227,10 @@ public class SisgradCrawler {
         return new GetMessageResponse(author, title, message, attachmentsList);
     }
 
+    //Gets all the 'classes' (by classes I mean, the classes the student must go)
     public Map<String, List<Map<String, String>>> getClasses() throws Exception {
         List < Map < String, String >> a = new ArrayList < Map < String, String >> ();
-        URL getClassesURL = new URL(this.protocol + "://" + this.domain + "/" + "academico" + "/aluno/cadastro.horarioAulas.action");
+        URL getClassesURL = new URL(protocol + "://" + domain + "/" + "academico" + "/aluno/cadastro.horarioAulas.action");
         SimpleHTTPSRequest.requestObject classesRequest = sisgradRequest.SimpleHTTPSRequest(getClassesURL, null);
 
         SimpleHTTPSRequest.requestObject classesRequestRedirected = sisgradRequest.SimpleHTTPSRequest(new URL(classesRequest.location), null);
@@ -250,15 +268,8 @@ public class SisgradCrawler {
                     hourData.put("hour", hourOfThisDay);
                     hourData.put("id", nonsenseId);
                     classesData.get(trueDayName).add(hourData);
-        /*
-        hourData.put("className", className);
-        hourData.put("classText", classText);
-        hourData.put("hour", hourOfThisDay);
-        dayAndHourData.put(hourOfThisDay, hourData);
-        */
-                    //System.out.println("added "+ hourData);
+
                 } else {
-                    //System.out.println("selected empty: "+line);
                 }
             } else {
                 System.out.println("selecionou empty: "+line);

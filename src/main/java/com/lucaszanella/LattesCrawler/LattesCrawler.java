@@ -1,7 +1,8 @@
 package com.lucaszanella.LattesCrawler;
 
 /**
- * Class to search and load information about people on Lattes. Mainly focused in loading teacher images.
+ * Class to search and load information about people on http://lattes.cnpq.br/. Mainly focused in loading teacher images.
+ * You can add any functionality to this if wanted, then send it as a pull request and I'll add here.
  */
 
 import com.lucaszanella.SimpleRequest.SimpleHTTPRequest;
@@ -14,22 +15,24 @@ import java.net.URLEncoder;
 import java.util.List;
 
 public class LattesCrawler {
-    private SimpleHTTPRequest lattesRequest = new SimpleHTTPRequest();
-    private String protocol = "http";
-    private String domain = "buscatextual.cnpq.br";
+    private SimpleHTTPRequest lattesRequest = new SimpleHTTPRequest();//Lattes only supports HTTP unencrypted connections :(
+
+    private static String protocol = "http";
+    private static String domain = "buscatextual.cnpq.br";//page where we search about teachers
+
     public String magicalRequestPage;
     Boolean debugMode = true;
     Boolean alreadyGotSearchPage = false;
 
     //Simple request object that will be sent as a response for search("teacherName")
     public class requestObject {
-        public String teachedId;
-        public String teacherURLImage;
-        public String teacherURLAbout;
+        public String teacherId;//id of teacher in the Lattes system
+        public String teacherURLImage;//URL of the teacher curriculum's image
+        public String teacherURLAbout;//URL to get more informatiomn about the teacher
         public requestObject(String teachedId, String teacherURLImage, String teacherURLAbout) {
-            this.teachedId = teachedId;//id of teacher in the Lattes system
-            this.teacherURLImage = teacherURLImage;//URL of the teacher curriculum's image
-            this.teacherURLAbout = teacherURLAbout;//URL to get more informatiomn about the teacher
+            this.teacherId = teachedId;
+            this.teacherURLImage = teacherURLImage;
+            this.teacherURLAbout = teacherURLAbout;
         }
     }
 
@@ -39,15 +42,18 @@ public class LattesCrawler {
     public List < List < String >> getCookies() {
         return this.lattesRequest.getCookies();
     }
-    public String getSearchPage() throws Exception{//just a method to fake that you're entering a search page and typing information (just to prevent them from blocking our web crawler)
-        URL searchPage = new URL(this.protocol + "://" + this.domain + "/" + "buscatextual" + "/" + "busca.do?metodo=apresentar");//URL of the search page
+    //Just a method to fake that you're entering a search page and typing information (just to prevent them from blocking our web crawler)
+    public String getSearchPage() throws Exception{
+        URL searchPage = new URL(protocol + "://" + domain + "/" + "buscatextual" + "/" + "busca.do?metodo=apresentar");//URL of the search page
         SimpleHTTPRequest.requestObject lattesSearchPage = lattesRequest.SimpleHTTPRequest(searchPage, null);//Unfortunately it needs to be an insecure HTTP request
+
         Document doc = Jsoup.parse(lattesSearchPage.response);
         Element formTag = doc.select("form[name=buscaForm]").first();
         magicalRequestPage = formTag.attr("action");//this is a number that I don't know the purpose but I'm using it since the website uses
         alreadyGotSearchPage = true;
         return lattesSearchPage.response;
     }
+
     public requestObject search(String teacherName) throws Exception {
         if (!alreadyGotSearchPage) {//if didn't get the search page to fake user activity, then get it first
             if (debugMode) {System.out.println("didn't get search page, getting now");};
@@ -135,13 +141,9 @@ public class LattesCrawler {
                 + "&" + "filtros.ufAtividade=" + ZERO
                 + "&" + "filtros.nomeInstAtividade=" + EMPTY;
 
-        URL searchPageToPostTo = new URL(this.protocol + "://" + this.domain + "" + magicalRequestPage);//post the search to this page
+        URL searchPageToPostTo = new URL(protocol + "://" + domain + "" + magicalRequestPage);//post the search to this page
         SimpleHTTPRequest.requestObject lattesSearchPage = lattesRequest.SimpleHTTPRequest(searchPageToPostTo, postQuery);
-    /*
-     try (PrintStream out = new PrintStream(new FileOutputStream("response.txt"))) {
-        out.print(lattesSearchPage.response);
-      }
-      */
+
         Document doc = Jsoup.parse(lattesSearchPage.response);
         String teacherId;
         String teacherURLImage;
@@ -157,7 +159,6 @@ public class LattesCrawler {
             teacherURLAbout = null;
             teacherURLImage = null;
         }
-        //return formTag.toString();
         return new requestObject(teacherId, teacherURLImage, teacherURLAbout);
     }
 }
