@@ -130,7 +130,7 @@ public class SimpleHTTPSRequest {
         String responseCode = Integer.toString(con.getResponseCode());
         //List<String> location = new List<String>();
         String responseMessage = con.getResponseMessage();
-        String location = "";
+        String location = null;
         if (responseCode.equals("302")) {
             location = con.getHeaderFields().get("Location").get(0);
         }

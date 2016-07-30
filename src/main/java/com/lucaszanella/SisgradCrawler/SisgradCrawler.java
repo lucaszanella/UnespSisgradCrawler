@@ -36,6 +36,7 @@ public class SisgradCrawler {
         }
         return (new URL(protocol + "://" + domain + "/" + "sentinela" + "/" + "sentinela.openMessage.action?emailTipo=recebidas" + thingsInTheEnd));
     }
+
     private URL mountMessageLink(String id, int page) throws IOException {
         return (new URL(protocol + "://" + domain + "/" + "sentinela" + "/" + "sentinela.viewMessage.action?txt_id=" + id + "&emailTipo=recebidas"));
     }
@@ -44,8 +45,39 @@ public class SisgradCrawler {
         this.username = username;
         this.password = password;
     }
+
+    //Result object to be sent back. 'error' property is null if no errors detected.
+    public class SentinelaLoginObject {
+        public String locationRedirect;
+        public LoginError loginError;
+        public PageError pageError;
+
+        public SentinelaLoginObject(String locationRedirect, LoginError loginError, PageError pageError) {
+            this.locationRedirect = locationRedirect;
+            this.loginError = loginError;
+            this.pageError = pageError;
+        }
+        //class to hold errors related to login
+        public class LoginError {
+            public Boolean wrongPassword;
+            public Boolean wrongEmail;
+            public LoginError(Boolean wrongPassword, Boolean wrongEmail) {
+                this.wrongPassword = wrongPassword;
+                this.wrongEmail = wrongEmail;
+            }
+        }
+        //class to hold errors related to page loading
+        public class PageError {
+            public String errorCode;
+            public String errorMessage;
+            public PageError(String errorCode, String errorMessage) {
+                this.errorCode = errorCode;
+                this.errorMessage = errorMessage;
+            }
+        }
+    }
     //Logs to the 'sentinela' module inside Sisgrad's system. It's responsible to load messages.
-    public void loginToSentinela() throws Exception {
+    public SentinelaLoginObject loginToSentinela() throws Exception {
         //Mounts POST query that's gonna be sent to the login page
         String postQuery = "txt_usuario=" + URLEncoder.encode(username, "UTF-8") + "&" + "txt_senha=" + URLEncoder.encode(password, "UTF-8");
         if (debugMode) {
@@ -53,8 +85,41 @@ public class SisgradCrawler {
         }
         URL sentinelaLogin = new URL(protocol + "://" + domain + "/" + "sentinela" + "/" + "login.action");
         SimpleHTTPSRequest.requestObject loginRequest = sisgradRequest.SimpleHTTPSRequest(sentinelaLogin, postQuery); //calls the login url, POSTing the query with user and password
+
         String locationRedirect = loginRequest.location;
+        String responseCode = loginRequest.responseCode;
+        String response = loginRequest.response;
+        String responseMessage = loginRequest.responseMessage;
+        Boolean wrongPassword = false;
+        Boolean wrongEmail = false;
+        //if there's no location http command, then the login didn't succeed and we're back at the same page
+        //this is a signal that the information was wrong
+        if (locationRedirect==null || (locationRedirect.equals("") || locationRedirect.length()==0)) {
+            //if the login didn't succeed, it could be wrong password or any other thing, so let's detect it!
+            Element doc = Jsoup.parse(response);
+            Elements errors = doc.getElementsByClass("errormsg");
+            String errorMsg = errors.first().text().toLowerCase();
+
+            if (errorMsg.contains("senha")) {wrongPassword = true;}
+            if (errorMsg.contains("email") || errorMsg.contains("e-mail")) {wrongEmail = true;}
+
+            SentinelaLoginObject.LoginError loginError =
+                    new SentinelaLoginObject(null, null, null).new LoginError(wrongPassword, wrongEmail);
+            SentinelaLoginObject.PageError pageError =
+                    new SentinelaLoginObject(null, null, null).new PageError(responseCode, responseMessage);
+            return new SentinelaLoginObject(locationRedirect, loginError, pageError);
+        } else if (locationRedirect.contains("sistemas.unesp.br/sentinela/sentinela.showDesktop.action")) {
+            return new SentinelaLoginObject(locationRedirect, null, null);
+        }
+        //If any http error happened, sent it back
+        if (!responseCode.equals("302")) {
+            SentinelaLoginObject.PageError pageError =
+                    new SentinelaLoginObject(null, null, null).new PageError(responseCode, responseMessage);
+            return new SentinelaLoginObject(locationRedirect, null, pageError);
+        }
+        return new SentinelaLoginObject(locationRedirect, null, null);
     }
+
     //Academico module is responsible to load things related to the student information like classes and so
     public void loginToAcademico() throws Exception {
         if (debugMode) {

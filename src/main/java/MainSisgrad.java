@@ -1,6 +1,5 @@
 import com.lucaszanella.SisgradCrawler.SisgradCrawler;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -14,25 +13,47 @@ public class MainSisgrad {
 
         //Creates the login object
         SisgradCrawler login = new SisgradCrawler(username, password);
-        login.loginToSentinela();//logs in
+        SisgradCrawler.SentinelaLoginObject loginObject = login.loginToSentinela();//logs in
+        if (loginObject.loginError!=null) {
+            System.out.println("something wrong with login information:");
+            if (loginObject.loginError.wrongEmail) {
+                System.out.print(" wrong email");
+            }
+            if (loginObject.loginError.wrongPassword) {
+                System.out.print(" wrong password");
+            }
+        } else if (loginObject.pageError!=null) {
+            System.out.println("error with the page loading, code is: "
+                    +loginObject.pageError.errorCode+" message is "+
+                    loginObject.pageError.errorMessage
+            );
+        } else {
+            System.out.println("logged in, location Redirect is:"+loginObject.locationRedirect);
+            System.out.println("now gonna push content from server...");
 
-        System.out.println("logged in, now gonna push content from server");
+            List<Map<String,String>> messages = login.getMessages(0);//page 0
+            System.out.println("first message: "+messages.get(0));
+            String mId = login.getMessages(0).get(0).get("messageId");
+            System.out.println("first message, content: "+login.getMessage(mId, true).message);//true means: gather message formatted in HTML
+        }
+
 
         //Creates request threads
-        List < Thread > requestThreads = new ArrayList < Thread > ();
+        //List < Thread > requestThreads = new ArrayList < Thread > ();
         //initializeMessageLoaderThread(requestThreads, login, 0);
 
-        login.loginToAcademico();//logs to academico to gather student info
-        Map<String, List<Map<String, String>>> getClassesRequest = login.getClasses();
+        //login.loginToAcademico();//logs to academico to gather student info
+        //Map<String, List<Map<String, String>>> getClassesRequest = login.getClasses();
 
-        String mId = login.getMessages(0).get(0).get("messageId");
+        //String mId = login.getMessages(0).get(0).get("messageId");
         //System.out.println(login.getMessage("20055868", true).attachments);
         //System.out.println(login.getMessage("20086397", true).attachments);
-        System.out.println(getClassesRequest);
+        //System.out.println(getClassesRequest);
         //SimpleRequest classesRequest = new SimpleRequest(domain+"/"+classesPage, new String(), login.cookies);
         //System.out.println(classesRequest.response);
         //System.out.println(login.getClasses());
     }
+    /*
     public static void initializeMessageLoaderThread(List < Thread > threads, final SisgradCrawler sisgrad, final int page) {
         Thread t = new Thread() {
             public void run() {
@@ -53,4 +74,5 @@ public class MainSisgrad {
         t.start();
         threads.add(t);
     }
+    */
 }
