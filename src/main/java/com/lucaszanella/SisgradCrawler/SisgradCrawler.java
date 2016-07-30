@@ -108,7 +108,7 @@ public class SisgradCrawler {
             SentinelaLoginObject.PageError pageError =
                     new SentinelaLoginObject(null, null, null).new PageError(responseCode, responseMessage);
             return new SentinelaLoginObject(locationRedirect, loginError, pageError);
-        } else if (locationRedirect.contains("sistemas.unesp.br/sentinela/sentinela.showDesktop.action")) {
+        } else if (locationRedirect.contains("sistemas.unesp.br/sentinela/sentinela.showDesktop.action")) {//login done because it redirected to this page
             return new SentinelaLoginObject(locationRedirect, null, null);
         }
         //If any http error happened, sent it back
