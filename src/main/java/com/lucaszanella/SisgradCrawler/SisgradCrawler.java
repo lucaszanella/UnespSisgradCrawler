@@ -45,7 +45,17 @@ public class SisgradCrawler {
         this.username = username;
         this.password = password;
     }
+    public class LoginTimeoutException extends Exception {
 
+        public LoginTimeoutException(String message) {
+            super(message);
+        }
+
+        public LoginTimeoutException(String message, Throwable throwable) {
+            super(message, throwable);
+        }
+
+    }
     //Result object to be sent back. 'error' property is null if no errors detected.
     public class SentinelaLoginObject {
         public String locationRedirect;
@@ -144,19 +154,25 @@ public class SisgradCrawler {
     }
     //TODO: return this object instead of a list of maps, or at least evaluate this possibility
     public class GetMessagesResponse{
-        public String author;
-        public String title;
-        public String message;
-        public Map<String, String> attachments;
-        public GetMessagesResponse(String author, String title, String message, Map<String, String> attachments) {
-            this.author = author;
-            this.title = title;
-            this.message = message;
-            this.attachments = attachments;
+        public PageError pageError;
+        public List < Map < String, String >> messages;
+        public GetMessagesResponse(PageError pageError,  List < Map < String, String >> messages) {
+            this.pageError = pageError;
+            this.messages = messages;
+        }
+
+        //class to hold errors related to page loading
+        public class PageError {
+            public String errorCode;
+            public String errorMessage;
+            public PageError(String errorCode, String errorMessage) {
+                this.errorCode = errorCode;
+                this.errorMessage = errorMessage;
+            }
         }
     }
     //Gets the messages from the system.
-    public List < Map < String, String >> getMessages(int page) throws Exception {
+    public GetMessagesResponse GetMessages(int page) throws Exception {
         //SimpleHTTPSRequest firstScreenAfterLoginRequest = new SimpleHTTPSRequest(locationRedirect, new String(), this.cookies);
         SimpleHTTPSRequest.requestObject pageToReadMessages;
         if (page == 0) {
@@ -187,48 +203,66 @@ public class SisgradCrawler {
             pageToReadMessages = sisgradRequest.SimpleHTTPSRequest(mountMessagePage(page, this.magicalNumber), null);
             this.alreadyLoadedMagicalNumber = true;
         }
+        String locationRedirect = pageToReadMessages.location;
+        String responseCode = pageToReadMessages.responseCode;
+        String response = pageToReadMessages.response;
+        String responseMessage = pageToReadMessages.responseMessage;
 
-        Document doc = Jsoup.parse(pageToReadMessages.response);
-        Element table = doc.getElementById("destinatario");
-        Elements messages = table.getElementsByTag("tr");
-        String title;
-        String author;
-        String subject;
-        String messageId;
-        String messageIdString;
-        String sentDate;
-        String readDate;
-        int c = 0;
-        List < Map < String, String >> messagesList = new ArrayList < Map < String, String >> ();
-        for (Element message: messages) {
-            Elements rowOfMessageTable = message.getElementsByTag("td");
-            if (c > 0) {
-                author = rowOfMessageTable.get(2).text();
-                title = rowOfMessageTable.get(3).select("a").text();
-                messageIdString = rowOfMessageTable.get(3).select("a").first().attr("href");
-                sentDate = rowOfMessageTable.get(4).text();
-                readDate = rowOfMessageTable.get(5).text();
-                messageId = messageIdString.split("\\(")[1].split("\\)")[0];
-                Map < String, String > messageRow = new HashMap < String, String > ();
-                messageRow.put("title", title);
-                messageRow.put("author", author);
-                messageRow.put("messageId", messageId.replace("'", ""));
-                messageRow.put("sentDate", sentDate);
-                messageRow.put("readDate", readDate);
-                String dateString = sentDate.split("\\.")[0];
-                DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
-                Date date = dateFormat.parse(dateString);
-                long unixTime = (long) date.getTime()/1000;
-                messageRow.put("sentDateUnix", String.valueOf(unixTime));
-                messagesList.add(messageRow);
-                //System.out.println();
-            } else {
-                //
+        //if there's no locationRedirect, there was no login timeout
+        if ((locationRedirect==null || (locationRedirect.equals("") || locationRedirect.length()==0)) && responseCode.equals("302")) {
+            Document doc = Jsoup.parse(response);
+            Element table = doc.getElementById("destinatario");
+            Elements messages = table.getElementsByTag("tr");
+            String title;
+            String author;
+            String subject;
+            String messageId;
+            String messageIdString;
+            String sentDate;
+            String readDate;
+            int c = 0;
+            List < Map < String, String >> messagesList = new ArrayList < Map < String, String >> ();
+            for (Element message: messages) {
+                Elements rowOfMessageTable = message.getElementsByTag("td");
+                if (c > 0) {
+                    author = rowOfMessageTable.get(2).text();
+                    title = rowOfMessageTable.get(3).select("a").text();
+                    messageIdString = rowOfMessageTable.get(3).select("a").first().attr("href");
+                    sentDate = rowOfMessageTable.get(4).text();
+                    readDate = rowOfMessageTable.get(5).text();
+                    messageId = messageIdString.split("\\(")[1].split("\\)")[0];
+                    Map < String, String > messageRow = new HashMap < String, String > ();
+                    messageRow.put("title", title);
+                    messageRow.put("author", author);
+                    messageRow.put("messageId", messageId.replace("'", ""));
+                    messageRow.put("sentDate", sentDate);
+                    messageRow.put("readDate", readDate);
+                    String dateString = sentDate.split("\\.")[0];
+                    DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
+                    Date date = dateFormat.parse(dateString);
+                    long unixTime = (long) date.getTime()/1000;
+                    messageRow.put("sentDateUnix", String.valueOf(unixTime));
+                    messagesList.add(messageRow);
+                    //System.out.println();
+                } else {
+                    //
+                }
+                c += 1;
             }
-            c += 1;
+            //GetMessagesResponse.PageError pageError = new GetMessagesResponse(null, null).new PageError(null, null);
+            return new GetMessagesResponse(null, messagesList);
+        } else if (locationRedirect.contains("sistemas.unesp.br/sentinela/login.open.action")) {//login probably timed out, server issued redirection to login page
+            throw new LoginTimeoutException("the login timed out, do it again");
         }
+        //If any http error happened, sent it back
+        if (!responseCode.equals("302")) {
+            GetMessagesResponse.PageError pageError =
+                    new GetMessagesResponse(null, null).new PageError(responseCode, responseMessage);
+            return new GetMessagesResponse(pageError, null);
+        }
+
         //System.out.println(messagesList);
-        return messagesList;
+        return new GetMessagesResponse(null, null);
         //System.out.println(pageToReadMessages.response);
     }
     public class GetMessageResponse{

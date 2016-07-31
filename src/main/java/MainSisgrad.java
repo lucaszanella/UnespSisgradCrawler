@@ -1,8 +1,5 @@
 import com.lucaszanella.SisgradCrawler.SisgradCrawler;
 
-import java.util.List;
-import java.util.Map;
-
 public class MainSisgrad {
     public static void main(String[] args) throws Exception {
         //Read username information from account.txt
@@ -31,9 +28,9 @@ public class MainSisgrad {
             System.out.println("logged in, location Redirect is:"+loginObject.locationRedirect);
             System.out.println("now gonna push content from server...");
 
-            List<Map<String,String>> messages = login.getMessages(0);//page 0
-            System.out.println("first message: "+messages.get(0));
-            String mId = login.getMessages(0).get(0).get("messageId");
+            SisgradCrawler.GetMessagesResponse messages = login.GetMessages(0);//page 0
+            System.out.println("first message: "+messages.messages.get(0));
+            String mId = login.GetMessages(0).messages.get(0).get("messageId");
             System.out.println("first message, content: "+login.getMessage(mId, true).message);//true means: gather message formatted in HTML
         }
 
