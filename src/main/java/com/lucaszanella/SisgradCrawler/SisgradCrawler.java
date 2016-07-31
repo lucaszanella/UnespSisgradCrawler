@@ -277,7 +277,7 @@ public class SisgradCrawler {
             this.attachments = attachments;
         }
     }
-    public GetMessageResponse getMessage(String messageId, Boolean html) throws Exception {//this method is a mess. TODO: make it better
+    public GetMessageResponse GetMessage(String messageId, Boolean html) throws Exception {//this method is a mess. TODO: make it better
         //System.out.println("hi, i'm getting message for id "+ messageId );
         URL getMessagesURL = new URL(protocol + "://" + domain + "/" + "sentinela" + "/" + "sentinela.viewMessage.action?txt_id="+messageId+"&emailTipo=recebidas");
         if (debugMode) {System.out.println(" the url is "+ getMessagesURL.toString());}
@@ -327,7 +327,7 @@ public class SisgradCrawler {
     }
 
     //Gets all the 'classes' (by classes I mean, the classes the student must go)
-    public Map<String, List<Map<String, String>>> getClasses() throws Exception {
+    public Map<String, List<Map<String, String>>> GetClasses() throws Exception {
         List < Map < String, String >> a = new ArrayList < Map < String, String >> ();
         URL getClassesURL = new URL(protocol + "://" + domain + "/" + "academico" + "/aluno/cadastro.horarioAulas.action");
         SimpleHTTPSRequest.requestObject classesRequest = sisgradRequest.SimpleHTTPSRequest(getClassesURL, null);
