@@ -45,17 +45,9 @@ public class SisgradCrawler {
         this.username = username;
         this.password = password;
     }
-    public class LoginTimeoutException extends Exception {
 
-        public LoginTimeoutException(String message) {
-            super(message);
-        }
+    //---Sentinela Login and its response object
 
-        public LoginTimeoutException(String message, Throwable throwable) {
-            super(message, throwable);
-        }
-
-    }
     //Result object to be sent back. 'error' property is null if no errors detected.
     public class SentinelaLoginObject {
         public String locationRedirect;
@@ -152,6 +144,9 @@ public class SisgradCrawler {
         }
         return magicalNumber;
     }
+
+    //---GetMessage and its response object
+
     //Object to return from GetMessagesResponse
     public class GetMessagesResponse{
         public PageError pageError;
@@ -231,7 +226,7 @@ public class SisgradCrawler {
             List < Map < String, String >> messagesList = new ArrayList < Map < String, String >> ();
             for (Element message: messages) {
                 Elements rowOfMessageTable = message.getElementsByTag("td");
-                if (c > 0) {
+                if (c > 0) {//TODO: explain what the fuck is this c
                     author = rowOfMessageTable.get(2).text();
                     title = rowOfMessageTable.get(3).select("a").text();
                     messageIdString = rowOfMessageTable.get(3).select("a").first().attr("href");
@@ -256,11 +251,14 @@ public class SisgradCrawler {
                 }
                 c += 1;
             }
-            //GetMessagesResponse.PageError pageError = new GetMessagesResponse(null, null).new PageError(null, null);
             return new GetMessagesResponse(null, messagesList);
+
         } else if (locationRedirect!=null && responseCode.equals("302")) {//login probably timed out, server issued redirection to login page
             if (locationRedirect.contains("sistemas.unesp.br/sentinela/login.open.action")) {//if location is login page...
-                throw new LoginTimeoutException("the login timed out, do it again");
+                SentinelaLoginObject relogin = loginToSentinela();
+                if (relogin.pageError==null) {
+                    getMessages(page);//Calls itself, now that it did login again
+                }
             }
         } else {
             GetMessagesResponse.PageError pageError =
@@ -271,6 +269,8 @@ public class SisgradCrawler {
         return new GetMessagesResponse(null, null);
         //System.out.println(pageToReadMessages.response);
     }
+
+    //---GetMessage AsyncTask and its response object
     public class GetMessageResponse{
         public String author;
         public String title;
@@ -331,7 +331,7 @@ public class SisgradCrawler {
         String title = "";
         return new GetMessageResponse(author, title, message, attachmentsList);
     }
-
+    //---getClasses
     //Gets all the 'classes' (by classes I mean, the classes the student must go)
     public Map<String, List<Map<String, String>>> getClasses() throws Exception {
         List < Map < String, String >> a = new ArrayList < Map < String, String >> ();
@@ -350,7 +350,6 @@ public class SisgradCrawler {
         Map<String, List<Map<String, String>>> classesData = new HashMap<String, List<Map<String, String>> >();
         for (String day:daysOfWeek) {classesData.put(day, new ArrayList<Map<String,String>>());}
         //p<String,Map<String, String>> dayAndHourData = new HashMap<String,Map<String, String>>();
-        int c = 0;
         for (Element line: lines) {
             //System.out.println(line);
             Map<String, String> hourData = new HashMap<String, String>();
