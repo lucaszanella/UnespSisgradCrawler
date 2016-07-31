@@ -121,16 +121,50 @@ public class SisgradCrawler {
         }
         return new SentinelaLoginObject(locationRedirect, null, null);
     }
+    //---Academico Login and its response object
+    //Result object to be sent back. 'error' property is null if no errors detected.
+    public class AcademicoAccessObject {
+        public String locationRedirect;
+        public PageError pageError;
 
+        public AcademicoAccessObject(String locationRedirect, PageError pageError) {
+            this.locationRedirect = locationRedirect;
+            this.pageError = pageError;
+        }
+        //class to hold errors related to page loading
+        public class PageError {
+            public String errorCode;
+            public String errorMessage;
+            public PageError(String errorCode, String errorMessage) {
+                this.errorCode = errorCode;
+                this.errorMessage = errorMessage;
+            }
+        }
+    }
     //Academico module is responsible to load things related to the student information like classes and so
-    public void loginToAcademico() throws Exception {
+    //It's not a real login like loginToSentinela() but it's needed in order to gather /academico/ pages
+    public AcademicoAccessObject accessAcademico() throws Exception {
         if (debugMode) {
             System.out.println("logging in to academico");
         }
+        //The academico access process, as I tested, requires me to access the page it redirected me to, so we do it below
         URL academicoLogin = new URL(protocol + "://" + domain + "/" + "sentinela" + "/" + "sentinela.acessarSistema.action?id=3");
         SimpleHTTPSRequest.requestObject loginRequest = sisgradRequest.SimpleHTTPSRequest(academicoLogin, null); //calls the login url from academico's page
         URL locationRedirect = new URL(loginRequest.location);//the login process requires HTTP redirection, which is disabled at SimpleHTTPSRequest
         SimpleHTTPSRequest.requestObject pageafterLogin = sisgradRequest.SimpleHTTPSRequest(locationRedirect, null); //calls the next page just to simulate a computer access
+        if (pageafterLogin.responseCode.equals("200")) {
+            return new AcademicoAccessObject(null, null);
+        } else if (pageafterLogin.location!=null && pageafterLogin.responseCode.equals("302")) {//login probably timed out, server issued redirection to login page
+            if (pageafterLogin.location.contains("sistemas.unesp.br/sentinela/login.open.action")) {//if location is login page...
+                SentinelaLoginObject relogin = loginToSentinela();
+                if (relogin.pageError==null) {//if everything went ok
+                    accessAcademico();//Calls itself, now that it did login again
+                }
+            }
+        }
+        AcademicoAccessObject.PageError pageError = new AcademicoAccessObject(null, null).new PageError(pageafterLogin.responseCode, pageafterLogin.responseMessage);
+        return new AcademicoAccessObject(pageafterLogin.location, pageError);
+
     }
     public String getMagicalNumber(SimpleHTTPSRequest.requestObject page) {
         Document doc = Jsoup.parse(page.response);
