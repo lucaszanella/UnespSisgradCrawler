@@ -31,7 +31,7 @@ public class MainSisgrad {
             SisgradCrawler.GetMessagesResponse messages = login.GetMessages(0);//page 0
             System.out.println("first message: "+messages.messages.get(0));
             String mId = login.GetMessages(0).messages.get(0).get("messageId");
-            System.out.println("first message, content: "+login.getMessage(mId, true).message);//true means: gather message formatted in HTML
+            System.out.println("first message, content: "+login.GetMessage(mId, true).message);//true means: gather message formatted in HTML
         }
 
 

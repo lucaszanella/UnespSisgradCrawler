@@ -152,7 +152,7 @@ public class SisgradCrawler {
         }
         return magicalNumber;
     }
-    //TODO: return this object instead of a list of maps, or at least evaluate this possibility
+    //Object to return from GetMessagesResponse
     public class GetMessagesResponse{
         public PageError pageError;
         public List < Map < String, String >> messages;
@@ -172,8 +172,15 @@ public class SisgradCrawler {
         }
     }
     //Gets the messages from the system.
-    public GetMessagesResponse GetMessages(int page) throws Exception {
-        //SimpleHTTPSRequest firstScreenAfterLoginRequest = new SimpleHTTPSRequest(locationRedirect, new String(), this.cookies);
+    public GetMessagesResponse getMessages(int page) throws Exception {
+        /*
+            Getting messages for pages above 0 is tricky, the link has some number that I couldn't figure out
+            the pattern for its existence, so I just extract it from the '2, 3, 4, ...' buttons in the page,
+            and save it as 'magicalNumber'. Turns out the magicalNumber is the same for all buttons.
+            Then, the page URL is mounted from this number by mountMessagePage(). The entire process is debugged/commented
+            because it would be hard to understand what's happening. Basically it extracts the number if it hadn't been
+            extracted before, mounts the link, then loads the messages from this link.
+        */
         SimpleHTTPSRequest.requestObject pageToReadMessages;
         if (page == 0) {
             if (debugMode) {
@@ -207,9 +214,9 @@ public class SisgradCrawler {
         String responseCode = pageToReadMessages.responseCode;
         String response = pageToReadMessages.response;
         String responseMessage = pageToReadMessages.responseMessage;
-
+        //System.out.println("responseCode: "+responseCode+" responseMessage: "+responseMessage);
         //if there's no locationRedirect, there was no login timeout
-        if ((locationRedirect==null || (locationRedirect.equals("") || locationRedirect.length()==0)) && responseCode.equals("302")) {
+        if (responseCode.equals("200")) {//HTTP OK with no redirection
             Document doc = Jsoup.parse(response);
             Element table = doc.getElementById("destinatario");
             Elements messages = table.getElementsByTag("tr");
@@ -251,16 +258,15 @@ public class SisgradCrawler {
             }
             //GetMessagesResponse.PageError pageError = new GetMessagesResponse(null, null).new PageError(null, null);
             return new GetMessagesResponse(null, messagesList);
-        } else if (locationRedirect.contains("sistemas.unesp.br/sentinela/login.open.action")) {//login probably timed out, server issued redirection to login page
-            throw new LoginTimeoutException("the login timed out, do it again");
-        }
-        //If any http error happened, sent it back
-        if (!responseCode.equals("302")) {
+        } else if (locationRedirect!=null && responseCode.equals("302")) {//login probably timed out, server issued redirection to login page
+            if (locationRedirect.contains("sistemas.unesp.br/sentinela/login.open.action")) {//if location is login page...
+                throw new LoginTimeoutException("the login timed out, do it again");
+            }
+        } else {
             GetMessagesResponse.PageError pageError =
                     new GetMessagesResponse(null, null).new PageError(responseCode, responseMessage);
             return new GetMessagesResponse(pageError, null);
         }
-
         //System.out.println(messagesList);
         return new GetMessagesResponse(null, null);
         //System.out.println(pageToReadMessages.response);
@@ -277,7 +283,7 @@ public class SisgradCrawler {
             this.attachments = attachments;
         }
     }
-    public GetMessageResponse GetMessage(String messageId, Boolean html) throws Exception {//this method is a mess. TODO: make it better
+    public GetMessageResponse getMessage(String messageId, Boolean html) throws Exception {//this method is a mess. TODO: make it better
         //System.out.println("hi, i'm getting message for id "+ messageId );
         URL getMessagesURL = new URL(protocol + "://" + domain + "/" + "sentinela" + "/" + "sentinela.viewMessage.action?txt_id="+messageId+"&emailTipo=recebidas");
         if (debugMode) {System.out.println(" the url is "+ getMessagesURL.toString());}
@@ -327,7 +333,7 @@ public class SisgradCrawler {
     }
 
     //Gets all the 'classes' (by classes I mean, the classes the student must go)
-    public Map<String, List<Map<String, String>>> GetClasses() throws Exception {
+    public Map<String, List<Map<String, String>>> getClasses() throws Exception {
         List < Map < String, String >> a = new ArrayList < Map < String, String >> ();
         URL getClassesURL = new URL(protocol + "://" + domain + "/" + "academico" + "/aluno/cadastro.horarioAulas.action");
         SimpleHTTPSRequest.requestObject classesRequest = sisgradRequest.SimpleHTTPSRequest(getClassesURL, null);
