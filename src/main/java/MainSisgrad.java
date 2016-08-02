@@ -8,11 +8,10 @@ public class MainSisgrad {
         String[] parts = login_data.split("\\r?\\n");
         String username = parts[0].split("=")[1];
         String password = parts[1].split("=")[1];
-
         //Creates the login object
         SisgradCrawler sisgradCrawler = new SisgradCrawler(username, password);
         SisgradCrawler.SentinelaLoginObject loginObject = sisgradCrawler.loginToSentinela();//logs in
-        if (loginObject.loginError!=null) {
+        if (loginObject.loginError != null) {
             System.out.println("something wrong with login information:");
             if (loginObject.loginError.wrongEmail) {
                 System.out.print(" wrong email");
@@ -20,35 +19,36 @@ public class MainSisgrad {
             if (loginObject.loginError.wrongPassword) {
                 System.out.print(" wrong password");
             }
-        } else if (loginObject.pageError!=null) {
+        } else if (loginObject.pageError != null) {
             System.out.println("error with the page loading, code is: "
-                    +loginObject.pageError.errorCode+" message is "+
+                    + loginObject.pageError.errorCode + " message is " +
                     loginObject.pageError.errorMessage
             );
         } else {
-            System.out.println("logged in, location Redirect is:"+loginObject.locationRedirect);
+            System.out.println("logged in, location Redirect is:" + loginObject.locationRedirect);
             System.out.println("now gonna push content from server...");
 
             SisgradCrawler.GetMessagesResponse messages = sisgradCrawler.getMessages(0);//page 0
-            System.out.println("first message: "+messages.messages.get(0));
+            System.out.println("first message: " + messages.messages.get(0));
             String mId = sisgradCrawler.getMessages(0).messages.get(0).get("messageId");
-            System.out.println("first message, content: "+sisgradCrawler.getMessage(mId, true).message);//true means: gather message formatted in HTML
+            System.out.println("first message, content: " + sisgradCrawler.getMessage(mId, true).message);//true means: gather message formatted in HTML
 
             System.out.println("accessing academico...");
             SisgradCrawler.AcademicoAccessObject academicoAccess = sisgradCrawler.accessAcademico();
-            if (academicoAccess.pageError==null) {
+            if (academicoAccess.pageError == null) {
                 System.out.println("academico accessed");
             } else {
                 //if we got redirected to https://sistemas.unesp.br/academico/common.home.action, then, according to my late tests,
                 //the academico access went fine.
-                if (academicoAccess.locationRedirect!=null && academicoAccess.locationRedirect.contains("sistemas.unesp.br/academico/common.home.action")) {
+                if (academicoAccess.locationRedirect != null && academicoAccess.locationRedirect.contains("sistemas.unesp.br/academico/common.home.action")) {
                     System.out.println("academico access probably successful");
                 } else {
-                    System.out.println("something went wrong. HTTP error: "+academicoAccess.pageError.errorCode+" error message: "+academicoAccess.pageError.errorMessage);
+                    System.out.println("something went wrong. HTTP error: " + academicoAccess.pageError.errorCode + " error message: " + academicoAccess.pageError.errorMessage);
                 }
             }
+            System.out.println("getting grades...");
+            SisgradCrawler.GetGradesResponse gradesResponse = sisgradCrawler.getGrades();
         }
-
 
         //Creates request threads
         //List < Thread > requestThreads = new ArrayList < Thread > ();

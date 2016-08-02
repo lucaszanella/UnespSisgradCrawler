@@ -304,7 +304,7 @@ public class SisgradCrawler {
         //System.out.println(pageToReadMessages.response);
     }
 
-    //---GetMessage AsyncTask and its response object
+    //---GetMessage and its response object
     public class GetMessageResponse{
         public String author;
         public String title;
@@ -414,5 +414,38 @@ public class SisgradCrawler {
             }
         }
         return (classesData);
+    }
+    public class GetGradesResponse{
+        public PageError pageError;
+        public List < Map < String, String >> grades;
+        public GetGradesResponse(PageError pageError,  List < Map < String, String >> grades) {
+            this.pageError = pageError;
+            this.grades = grades;
+        }
+
+        //class to hold errors related to page loading
+        public class PageError {
+            public String errorCode;
+            public String errorMessage;
+            public PageError(String errorCode, String errorMessage) {
+                this.errorCode = errorCode;
+                this.errorMessage = errorMessage;
+            }
+        }
+    }
+    public GetGradesResponse getGrades() throws Exception {
+        URL getGradesURL = new URL(protocol + "://" + domain + "/" + "academico" + "/selecionar.aluno.action?url=FREQUENCIAS_NOTAS  ");
+        SimpleHTTPSRequest.requestObject gradesRequest = sisgradRequest.SimpleHTTPSRequest(getGradesURL, null);
+        System.out.println("response code: "+gradesRequest.responseCode);
+        System.out.println("location: "+gradesRequest.location);
+        System.out.println("response: "+gradesRequest.response);
+
+        System.out.println("ok, let's access"+ gradesRequest.location+"...");
+        SimpleHTTPSRequest.requestObject gradesRequestRedirected = sisgradRequest.SimpleHTTPSRequest(new URL(gradesRequest.location), null);
+        System.out.println("response code: "+gradesRequestRedirected.responseCode);
+        System.out.println("location: "+gradesRequestRedirected.location);
+        System.out.println("response: "+gradesRequestRedirected.response);
+        //System.out.println("ok, let's access"+ gradesRequest.location+"...");
+        return null;
     }
 }
