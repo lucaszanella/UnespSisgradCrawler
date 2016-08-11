@@ -8,9 +8,9 @@ Just clone the repository and build with gradle
 ```
 git clone https://github.com/lucaszanella/UnespSisgradCrawler
 cd UnespSisgradCrawler
-gradle build
+gradlew build
 ```
-
+Or you can use your gradle version, I just can't guarantee everything will build perfectly.
 
 # Usage:
 Just create a text file named account.txt in /UnespSisgradCrawler/build/classes/main with the following:
