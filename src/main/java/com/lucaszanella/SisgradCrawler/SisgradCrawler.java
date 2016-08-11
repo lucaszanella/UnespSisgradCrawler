@@ -1,6 +1,7 @@
 package com.lucaszanella.SisgradCrawler;
 
 import com.lucaszanella.SimpleRequest.SimpleHTTPSRequest;
+import com.lucaszanella.jSoupTable;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -12,8 +13,6 @@ import java.net.URLEncoder;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 //TODO: prepare this and other Crawlers to load all components in the page in order to perfectly simulate a computer access
 
 public class SisgradCrawler {
@@ -248,42 +247,38 @@ public class SisgradCrawler {
         if (responseCode.equals("200")) {//HTTP OK with no redirection
             Document doc = Jsoup.parse(response);
             Element table = doc.getElementById("destinatario");
-            Elements messages = table.getElementsByTag("tr");
-            String title;
-            String author;
-            String subject;
-            String messageId;
-            String messageIdString;
-            String sentDate;
-            String readDate;
-            int c = 0;
-            List < Map < String, String >> messagesList = new ArrayList < Map < String, String >> ();
-            for (Element message: messages) {
-                Elements rowOfMessageTable = message.getElementsByTag("td");
-                if (c > 0) {//TODO: explain what the fuck is this c
-                    author = rowOfMessageTable.get(2).text();
-                    title = rowOfMessageTable.get(3).select("a").text();
-                    messageIdString = rowOfMessageTable.get(3).select("a").first().attr("href");
-                    sentDate = rowOfMessageTable.get(4).text();
-                    readDate = rowOfMessageTable.get(5).text();
-                    messageId = messageIdString.split("\\(")[1].split("\\)")[0];
-                    Map < String, String > messageRow = new HashMap < String, String > ();
+            jSoupTable messagesTable = new jSoupTable(table);
+            int tableSize = messagesTable.getAllRows().size();
+            List < Map < String, String >> messagesList = new ArrayList <> ();
+            for (int i = 0; i<tableSize; i++) {//Start at 1 because 0 is a header tag
+                Map < String, String > messageRow = new HashMap <> ();
+                if (messagesTable.isRow(i)) {
+                    String title = messagesTable.getRowTags(i).get(messagesTable.getColumnIndex("assunto", 0)).getTag().text();
+                    String author = messagesTable.getRowTags(i).get(messagesTable.getColumnIndex("enviado por", 0)).getTag().text();
+                    //TODO: deal with nullPointerException when the page doesn't appear as intended
+                    String messageIdString = messagesTable.getRowTags(i).
+                            get(messagesTable.getColumnIndex("assunto", 0)).
+                            getTag().
+                            getElementsByTag("a").first().attr("href");
+                    String sentDate = messagesTable.getRowTags(i).get(messagesTable.getColumnIndex("enviado em", 0)).getTag().text();
+                    String readDate = messagesTable.getRowTags(i).get(messagesTable.getColumnIndex("lido em", 0)).getTag().text();
+                    String messageId = messageIdString.split("\\(")[1].split("\\)")[0];
+
                     messageRow.put("title", title);
                     messageRow.put("author", author);
                     messageRow.put("messageId", messageId.replace("'", ""));
                     messageRow.put("sentDate", sentDate);
                     messageRow.put("readDate", readDate);
+
                     String dateString = sentDate.split("\\.")[0];
                     DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
                     Date date = dateFormat.parse(dateString);
-                    long unixTime = (long) date.getTime()/1000;
+                    long unixTime = (long) date.getTime() / 1000;
                     messageRow.put("sentDateUnix", String.valueOf(unixTime));
                     messagesList.add(messageRow);
-                    //System.out.println();
                 } else {
-                    //
+                    //System.out.println(messagesTable.getRowTags(i).get(2).getTag());
                 }
-                c += 1;
             }
             return new GetMessagesResponse(null, messagesList);
 
@@ -303,7 +298,6 @@ public class SisgradCrawler {
         return new GetMessagesResponse(null, null);
         //System.out.println(pageToReadMessages.response);
     }
-
     //---GetMessage and its response object
     public class GetMessageResponse{
         public String author;
@@ -317,7 +311,8 @@ public class SisgradCrawler {
             this.attachments = attachments;
         }
     }
-    public GetMessageResponse getMessage(String messageId, Boolean html) throws Exception {//this method is a mess. TODO: make it better
+
+    public GetMessageResponse getMessage (String messageId, Boolean html) throws Exception {//this method is a mess. TODO: make it better
         //System.out.println("hi, i'm getting message for id "+ messageId );
         URL getMessagesURL = new URL(protocol + "://" + domain + "/" + "sentinela" + "/" + "sentinela.viewMessage.action?txt_id="+messageId+"&emailTipo=recebidas");
         if (debugMode) {System.out.println(" the url is "+ getMessagesURL.toString());}
@@ -325,96 +320,168 @@ public class SisgradCrawler {
         Document doc = Jsoup.parse(messageRequest.response);
         Element messageForm = doc.select("form").get(0);//gets the first form. TODO: change this to get the largest form or something like that
         Element messageTable = messageForm.select("table").get(0);
-        Elements messageTableRows = messageForm.select("tr");
-        Element attachments = null;
-        //System.out.println("messageTableRows: "+messageTableRows.html());
-        Boolean containsAttachments = false;
-        Map<String, String> attachmentsList = new HashMap<String, String>();
-        for (Element messageTableRow: messageTableRows) {
-            //System.out.println("messageTableRow being analyzed: "+messageTableRow.html());
-            Elements linksOfAttachments = messageTableRow.select("td").select("a");
-            if (messageTableRow.select("td").text().toLowerCase().contains("anexo")) {
-                containsAttachments = true;
-                //System.out.println("contains link");
-                //a.put("attachments", )
-                //Elements attachmentLinks = linksOfAttachments.select("a");
-                for (Element linkOfAttachment:linksOfAttachments) {
-                    System.out.println("linkOfAttachment: "+linkOfAttachment.html()+"attr: "+linkOfAttachment.attr("href"));
-                    attachmentsList.put(linkOfAttachment.text(),linkOfAttachment.attr("href"));
+        jSoupTable table = new jSoupTable(messageTable);
+        //Since this is not a table with header, we can't get columns indexes, so we'll need to iterate through each row,
+        //then in each row, we're gonna search the column values that match our needs.
+        String from = null;
+        String title = null;
+        String attachments = null;
+        String message = null;
+        Map<String, String> attachmentsList = new HashMap<>();
+
+        for (int k = 0; k<table.getAllRows().size(); k++) {
+            List<jSoupTable.Tag> tags = table.getAllRows().get(k);
+            //for (List<jSoupTable.Tag> tags: table.getAllRows()) {
+            for (int i=0; i<tags.size(); i++) {
+                //Identify the sender of the message
+                if (tags.get(0).getTag().text().toLowerCase().contains("de") && tags.size()==2) {
+                    from = tags.get(1).getTag().text();
+                }
+                //Identify the subject or title of the message
+                if (tags.get(0).getTag().text().toLowerCase().contains("assunto") && tags.size()==2) {
+                    title = tags.get(1).getTag().text();
+                }
+                //Identify the attachments of the message
+                if (tags.get(0).getTag().text().toLowerCase().contains("anexo") && tags.size()==2) {
+                    Elements linksOfAttachments  = tags.get(1).getTag().select("a");
+                    //containsAttachments = true;
+                    for (Element linkOfAttachment:linksOfAttachments) {
+                        //System.out.println("linkOfAttachment: "+linkOfAttachment.html()+"attr: "+linkOfAttachment.attr("href"));
+                        attachmentsList.put(linkOfAttachment.text(),linkOfAttachment.attr("href"));
+                    }
+
+                }
+                /**
+                 * This is the most important part, the message content. Several techniques were
+                 * used to identify the message, but attention, web crawling is never perfect :(.
+                 * The only unique characteristics of the messages row was having bgcolor=white or
+                 * having a lots of <br> (in case of multiline messages). In both cases, the column size
+                 * was 1.
+                 */
+                if      (
+                                (!tags.get(0).getTag().select("td").isEmpty()
+                                && tags.get(0).getTag().select("td").attr("bgcolor").equals("white")
+                                && tags.size()==1)
+                                ||
+                                (tags.get(0).getTag().getElementsByTag("br").size()>2 && tags.size()==1)
+                        )
+                {
+                    //System.out.println("SELECTION: ");
+                    //System.out.println("first: "+(!tags.get(0).getTag().select("td").isEmpty()
+                            //&& tags.get(0).getTag().select("td").attr("bgcolor").equals("white")
+                            //&& tags.size()==1));
+                    //System.out.println("second: "+(tags.get(0).getTag().getElementsByTag("br").size()>2 && tags.size()==1));
+                    /**
+                     * Sometimes is useful to request for the HTML content of the message, other times for the text content.
+                     * I could always return the HTML and extract the text with code but it requires a minimum API greater
+                     * than the one I am supporting in Android, so let's parse the HTML or text content here and send it.
+                     * PS: I could have used jSoup in the Android app to extract the text, but I wanted to use here since
+                     * it's already loaded in memory.
+                     */
+                    if (html) {
+                        message = tags.get(0).getTag().html();
+                    } else {
+                        message = tags.get(0).getTag().text();
+                    }
                 }
             }
         }
-        String message;
-        int trNumber;//number of the <tr> tag in which message is contained
-        if (containsAttachments) {
-            trNumber = 4;
-        } else {
-            trNumber = 3;
-            attachmentsList = null;
-        }
-        if (!html) {
-            message = messageTable.select("tr").get(trNumber).text();
-        } else {
-            message = messageTable.select("tr").get(trNumber).html();
-        }
-        //Map<String, String> a = new HashMap<String,String>();
-        //a.put("message", message);
+        /*
+        System.out.println("title: "+title);
+        System.out.println("from: "+from);
+        System.out.println("attachments: "+attachmentsList);
+        System.out.println("message: "+message);
+        */
 
-        if (debugMode) {System.out.println("the message is "+ message);}
-        String author = "";
-        String title = "";
-        return new GetMessageResponse(author, title, message, attachmentsList);
+        return new GetMessageResponse(from, title, message, attachmentsList);
     }
     //---getClasses
+    public class GetClassesResponse{
+        public PageError pageError;
+        public Map<String, Map<String, ClassInfo>> week;
+        public GetClassesResponse(PageError pageError, Map<String, Map<String, ClassInfo>> week) {
+            this.pageError = pageError;
+            this.week = week;
+        }
+
+        //class to hold errors related to page loading
+        public class PageError {
+            public String errorCode;
+            public String errorMessage;
+            public PageError(String errorCode, String errorMessage) {
+                this.errorCode = errorCode;
+                this.errorMessage = errorMessage;
+            }
+        }
+    }
+    public class ClassInfo {
+        String name;
+        String code;
+        String place;
+        public ClassInfo(String name, String code, String place) {
+            this.name = name;
+            this.code = code;
+            this.place = place;
+        }
+    }
+
     //Gets all the 'classes' (by classes I mean, the classes the student must go)
-    public Map<String, List<Map<String, String>>> getClasses() throws Exception {
-        List < Map < String, String >> a = new ArrayList < Map < String, String >> ();
+    public GetClassesResponse getClasses() throws Exception {
         URL getClassesURL = new URL(protocol + "://" + domain + "/" + "academico" + "/aluno/cadastro.horarioAulas.action");
         SimpleHTTPSRequest.requestObject classesRequest = sisgradRequest.SimpleHTTPSRequest(getClassesURL, null);
 
         SimpleHTTPSRequest.requestObject classesRequestRedirected = sisgradRequest.SimpleHTTPSRequest(new URL(classesRequest.location), null);
         SimpleHTTPSRequest.requestObject classesRequestRedirectedAgain = sisgradRequest.SimpleHTTPSRequest(new URL(classesRequestRedirected.location), null);
+        if (classesRequestRedirectedAgain.responseCode.equals("200")) {
+            Document doc = Jsoup.parse(classesRequestRedirectedAgain.response);
+            //Tables
+            Element classesInfo = doc.getElementsByClass("listagem").first();
+            Element daysTable = doc.select("table").get(1);
+            //Interpret tables with jSoupTable class
+            jSoupTable days = new jSoupTable(daysTable);
+            jSoupTable classes = new jSoupTable(classesInfo);
 
-        Document doc = Jsoup.parse(classesRequestRedirectedAgain.response);
-        Elements tableOriginal = doc.getElementsByClass("listagem quadro");
-        Element table = doc.select("table").get(1);
-        Elements lines = table.select("td");
-        List<String> daysOfWeek = new ArrayList<String>(Arrays.asList("segunda", "terca", "quarta", "quinta", "sexta", "sabado"));//just a list of days of the week
-        //Map<String, Map<String,Map<String, String>>> classesData = new HashMap<String, Map<String,Map<String, String>> >();
-        Map<String, List<Map<String, String>>> classesData = new HashMap<String, List<Map<String, String>> >();
-        for (String day:daysOfWeek) {classesData.put(day, new ArrayList<Map<String,String>>());}
-        //p<String,Map<String, String>> dayAndHourData = new HashMap<String,Map<String, String>>();
-        for (Element line: lines) {
-            //System.out.println(line);
-            Map<String, String> hourData = new HashMap<String, String>();
-            String dayName = line.attr("id");
-            Pattern r = Pattern.compile("[A-Za-z]*");
-            Matcher m = r.matcher(dayName);
-            String trueDayName = "";
-            if (m.find()) {trueDayName = m.group().toLowerCase();} else {System.out.println("Didn't find anything at: "+dayName);}
-            Element parentTag = line.parent();
-            String parentTagName = parentTag.tagName();
-            if (daysOfWeek.contains(trueDayName) && parentTagName.equals("tr")) {
-                if (!line.select("div").isEmpty()) {
-                    String lineText = line.text();
-                    String className = line.select("div").attr("title");//Not 'java class', here I mean, the name of the class of the university
-                    String classText = line.select("div").text();
-                    String nonsenseId = line.select("div").attr("id");//Don't know what this id means, but gonna store it for future usage
-                    String hourOfThisDay = parentTag.select("th").text();
-                    hourData.put("className", className);
-                    hourData.put("classText", classText);
-                    hourData.put("hour", hourOfThisDay);
-                    hourData.put("id", nonsenseId);
-                    classesData.get(trueDayName).add(hourData);
+            Map<String, Map<String, ClassInfo>> week = new LinkedHashMap<>();//Map<Day, Map<Hour, Class>>, the table represented as a map
+            List<String> daysOfWeek = new ArrayList<>(Arrays.asList("segunda", "terça", "quarta", "quinta", "sexta", "sábado"));//just a list of days of the week
 
-                } else {
+            //Iterates through the table of classes information (like teachers, name of the class, total of hours...)
+
+            //Iterates through the table of classes per each day and hour
+            for (String day : daysOfWeek) {//For each day, we're gonna add an entry in the 'week' Map
+                Map<String, ClassInfo> dayColumn = new LinkedHashMap<>();//This is the Map<Hour, Class> which will be mounted for each day of the week
+                for (int i = 0; i < days.getAllRows().size(); i++) {
+                    if (days.isRow(i)) {//it could be a header
+                        String hourOfClass = days.getRowTags(i).get(0).getTag().text();
+                        //TODO: tolerate ç as c and á, é, í, ... as a, e, i.
+                        //System.out.println("day "+day+" has index "+days.getColumnIndex(day, 0));
+                        //TODO: VERIFY IF IT'S NOT EMPTY AND IF THE SPLIT IS POSSIBLE
+                        ClassInfo aboutClass = new ClassInfo(
+                                days.getRowTags(i).get(days.getColumnIndex(day, 0)).getTag().attr("title"),
+                                days.getRowTags(i).get(days.getColumnIndex(day, 0)).getTag().text().split("/")[0],
+                                days.getRowTags(i).get(days.getColumnIndex(day, 0)).getTag().text().split("/")[1]
+                        );
+                        dayColumn.put(hourOfClass, aboutClass);
+                    }
                 }
-            } else {
-                System.out.println("selecionou empty: "+line);
+                week.put(day, dayColumn);
             }
+            //System.out.println(week);
+            return new GetClassesResponse(null, week);
+        } else if (classesRequestRedirectedAgain.location!=null && classesRequestRedirectedAgain.responseCode.equals("302")) {//login probably timed out, server issued redirection to login page
+            if (classesRequestRedirectedAgain.location.contains("sistemas.unesp.br/sentinela/login.open.action")) {//if location is login page...
+                SentinelaLoginObject relogin = loginToSentinela();
+                if (relogin.pageError==null) {
+                    getClasses();//Calls itself, now that it did login again
+                }
+            }
+        } else {
+            GetClassesResponse.PageError pageError =
+                    new GetClassesResponse(null, null).new PageError(classesRequestRedirectedAgain.responseCode, classesRequestRedirectedAgain.responseMessage);
+            return new GetClassesResponse(pageError, null);
         }
-        return (classesData);
+        return (null);
     }
+
     public class GetGradesResponse{
         public PageError pageError;
         public List < Map < String, String >> grades;
@@ -440,11 +507,15 @@ public class SisgradCrawler {
         System.out.println("location: "+gradesRequest.location);
         System.out.println("response: "+gradesRequest.response);
 
-        System.out.println("ok, let's access"+ gradesRequest.location+"...");
+        System.out.println("ok, let's access "+ gradesRequest.location+"...");
         SimpleHTTPSRequest.requestObject gradesRequestRedirected = sisgradRequest.SimpleHTTPSRequest(new URL(gradesRequest.location), null);
         System.out.println("response code: "+gradesRequestRedirected.responseCode);
         System.out.println("location: "+gradesRequestRedirected.location);
-        System.out.println("response: "+gradesRequestRedirected.response);
+        //System.out.println("response: "+gradesRequestRedirected.response);
+        Document doc = Jsoup.parse(gradesRequestRedirected.response);
+        Element gradesTable = doc.getElementById("tabelaNotas");
+        jSoupTable gradlesJsoupTable = new jSoupTable(gradesTable);
+        //System.out.println(gradlesJsoupTable.getAllRowStrings());
         //System.out.println("ok, let's access"+ gradesRequest.location+"...");
         return null;
     }
