@@ -253,15 +253,14 @@ public class SisgradCrawler {
             for (int i = 0; i<tableSize; i++) {//Start at 1 because 0 is a header tag
                 Map < String, String > messageRow = new HashMap <> ();
                 if (messagesTable.isRow(i)) {
-                    String title = messagesTable.getRowTags(i).get(messagesTable.getColumnIndex("assunto", 0)).getTag().text();
-                    String author = messagesTable.getRowTags(i).get(messagesTable.getColumnIndex("enviado por", 0)).getTag().text();
+                    String title = messagesTable.getRowTags(i).get(messagesTable.getColumnIndex("assunto", 0)).text();
+                    String author = messagesTable.getRowTags(i).get(messagesTable.getColumnIndex("enviado por", 0)).text();
                     //TODO: deal with nullPointerException when the page doesn't appear as intended
                     String messageIdString = messagesTable.getRowTags(i).
                             get(messagesTable.getColumnIndex("assunto", 0)).
-                            getTag().
                             getElementsByTag("a").first().attr("href");
-                    String sentDate = messagesTable.getRowTags(i).get(messagesTable.getColumnIndex("enviado em", 0)).getTag().text();
-                    String readDate = messagesTable.getRowTags(i).get(messagesTable.getColumnIndex("lido em", 0)).getTag().text();
+                    String sentDate = messagesTable.getRowTags(i).get(messagesTable.getColumnIndex("enviado em", 0)).text();
+                    String readDate = messagesTable.getRowTags(i).get(messagesTable.getColumnIndex("lido em", 0)).text();
                     String messageId = messageIdString.split("\\(")[1].split("\\)")[0];
 
                     messageRow.put("title", title);
@@ -330,20 +329,20 @@ public class SisgradCrawler {
         Map<String, String> attachmentsList = new HashMap<>();
 
         for (int k = 0; k<table.getAllRows().size(); k++) {
-            List<jSoupTable.Tag> tags = table.getAllRows().get(k);
+            List<Element> tags = table.getAllRows().get(k);
             //for (List<jSoupTable.Tag> tags: table.getAllRows()) {
             for (int i=0; i<tags.size(); i++) {
                 //Identify the sender of the message
-                if (tags.get(0).getTag().text().toLowerCase().contains("de") && tags.size()==2) {
-                    from = tags.get(1).getTag().text();
+                if (tags.get(0).text().toLowerCase().contains("de") && tags.size()==2) {
+                    from = tags.get(1).text();
                 }
                 //Identify the subject or title of the message
-                if (tags.get(0).getTag().text().toLowerCase().contains("assunto") && tags.size()==2) {
-                    title = tags.get(1).getTag().text();
+                if (tags.get(0).text().toLowerCase().contains("assunto") && tags.size()==2) {
+                    title = tags.get(1).text();
                 }
                 //Identify the attachments of the message
-                if (tags.get(0).getTag().text().toLowerCase().contains("anexo") && tags.size()==2) {
-                    Elements linksOfAttachments  = tags.get(1).getTag().select("a");
+                if (tags.get(0).text().toLowerCase().contains("anexo") && tags.size()==2) {
+                    Elements linksOfAttachments  = tags.get(1).select("a");
                     //containsAttachments = true;
                     for (Element linkOfAttachment:linksOfAttachments) {
                         //System.out.println("linkOfAttachment: "+linkOfAttachment.html()+"attr: "+linkOfAttachment.attr("href"));
@@ -359,11 +358,11 @@ public class SisgradCrawler {
                  * was 1.
                  */
                 if      (
-                                (!tags.get(0).getTag().select("td").isEmpty()
-                                && tags.get(0).getTag().select("td").attr("bgcolor").equals("white")
+                                (!tags.get(0).select("td").isEmpty()
+                                && tags.get(0).select("td").attr("bgcolor").equals("white")
                                 && tags.size()==1)
                                 ||
-                                (tags.get(0).getTag().getElementsByTag("br").size()>2 && tags.size()==1)
+                                (tags.get(0).getElementsByTag("br").size()>2 && tags.size()==1)
                         )
                 {
                     //System.out.println("SELECTION: ");
@@ -379,9 +378,9 @@ public class SisgradCrawler {
                      * it's already loaded in memory.
                      */
                     if (html) {
-                        message = tags.get(0).getTag().html();
+                        message = tags.get(0).html();
                     } else {
-                        message = tags.get(0).getTag().text();
+                        message = tags.get(0).text();
                     }
                 }
             }
@@ -423,6 +422,9 @@ public class SisgradCrawler {
             this.code = code;
             this.place = place;
         }
+        public String toString() {
+            return("Class name: "+this.name+", Class code: "+this.code+" Class location:" +this.place);
+        }
     }
 
     //Gets all the 'classes' (by classes I mean, the classes the student must go)
@@ -451,14 +453,29 @@ public class SisgradCrawler {
                 Map<String, ClassInfo> dayColumn = new LinkedHashMap<>();//This is the Map<Hour, Class> which will be mounted for each day of the week
                 for (int i = 0; i < days.getAllRows().size(); i++) {
                     if (days.isRow(i)) {//it could be a header
-                        String hourOfClass = days.getRowTags(i).get(0).getTag().text();
+                        String hourOfClass = days.getRowTags(i).get(0).text();
                         //TODO: tolerate ç as c and á, é, í, ... as a, e, i.
                         //System.out.println("day "+day+" has index "+days.getColumnIndex(day, 0));
                         //TODO: VERIFY IF IT'S NOT EMPTY AND IF THE SPLIT IS POSSIBLE
+                        //System.out.println("DEBUG SPLIT: "+days.getRowTags(i).get(days.getColumnIndex(day, 0)).text());
+                        String classTitle = "";
+                        String classCode = "";
+                        String classLocation = "";
+                        if (!days.getRowTags(i).get(days.getColumnIndex(day, 0)).getElementsByTag("div").isEmpty()) {
+                            classTitle = days.getRowTags(i).get(days.getColumnIndex(day, 0)).getElementsByTag("div").first().attr("title");
+                        }
+                        if (days.getRowTags(i).get(days.getColumnIndex(day, 0)).text().contains("/")) {
+                            try {
+                                classCode = days.getRowTags(i).get(days.getColumnIndex(day, 0)).text().split("/")[0];
+                                classLocation = days.getRowTags(i).get(days.getColumnIndex(day, 0)).text().split("/")[1];
+                            } catch (Exception e) {
+
+                            }
+                        }
                         ClassInfo aboutClass = new ClassInfo(
-                                days.getRowTags(i).get(days.getColumnIndex(day, 0)).getTag().attr("title"),
-                                days.getRowTags(i).get(days.getColumnIndex(day, 0)).getTag().text().split("/")[0],
-                                days.getRowTags(i).get(days.getColumnIndex(day, 0)).getTag().text().split("/")[1]
+                                classTitle,
+                                classCode,
+                                classLocation
                         );
                         dayColumn.put(hourOfClass, aboutClass);
                     }

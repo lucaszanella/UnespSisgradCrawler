@@ -15,13 +15,13 @@ public class MainSisgrad {
             Document doc = Jsoup.parse(table);
             Element tableElement = doc.getElementById("tabelaNotas");
             jSoupTable myTable = new jSoupTable(tableElement);
-            System.out.println(myTable.getRowTags(0).get(0).getTagname());
+            System.out.println(myTable.getRowTags(0).get(0).tagName());
             System.out.println(myTable.getRowStrings(0));
             System.out.println(myTable.getRowStrings(1));
-            System.out.println(myTable.getColumnTags(0).get(0).getTag());
+            System.out.println(myTable.getColumnTags(0).get(0));
             System.out.println(myTable.getColumnStrings(0));
             System.out.println("header index:" + myTable.getColumnIndex("turma", 0));
-            System.out.println("tag: " + myTable.getRowTags(1).get(myTable.getColumnIndex("turma", 0)).getTag());
+            System.out.println("tag: " + myTable.getRowTags(1).get(myTable.getColumnIndex("turma", 0)));
         }
 
         /*
@@ -82,7 +82,7 @@ public class MainSisgrad {
                 System.out.println("getting classes...");
                 SisgradCrawler.GetClassesResponse classesResponse = sisgradCrawler.getClasses();
                 System.out.println(classesResponse.week.get("segunda").get(
-                        new ArrayList<String>(classesResponse.week.get("segunda").keySet()).get(3)));
+                        new ArrayList<>(classesResponse.week.get("segunda").keySet()).get(3)));
                 System.out.println("getting grades...");
                 SisgradCrawler.GetGradesResponse gradesResponse = sisgradCrawler.getGrades();
             }

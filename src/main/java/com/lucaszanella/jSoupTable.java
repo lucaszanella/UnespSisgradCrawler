@@ -15,7 +15,7 @@ import java.util.*;
  */
 public class jSoupTable {
     private Integer maxColumnNumber;
-    private List<List<Tag>> rows = new ArrayList<>();
+    private List<List<Element>> rows = new ArrayList<>();
 
     /**
      * Returns the table headers, which are the elements in a row declared with <th>
@@ -41,7 +41,7 @@ public class jSoupTable {
      */
 
 
-    public List<Tag> getRowTags(int index) {
+    public List<Element> getRowTags(int index) {
         return this.rows.get(index);
     }
     /**
@@ -52,15 +52,15 @@ public class jSoupTable {
         List<String> rowStrings = new ArrayList<>();
         //Since each row can have an arbitrary number of elements, we iterate through
         //each row, not through the headers size.
-        for (Tag rowTag:getRowTags(index)) {
-            rowStrings.add(rowTag.getTag().text());
+        for (Element rowTag:getRowTags(index)) {
+            rowStrings.add(rowTag.text());
         }
         return rowStrings;
     }
     /**
      * Same as getRowElements, but returns a list of all rows, not a specific row index
      */
-    public List<List<Tag>> getAllRows() {
+    public List<List<Element>> getAllRows() {
         return this.rows;
     }
     /**
@@ -75,12 +75,12 @@ public class jSoupTable {
         return allRowStrings;
     }
     public int getColumnIndex(String name, int headerIndex) {
-        List<Tag> header = rows.get(headerIndex);
+        List<Element> header = rows.get(headerIndex);
         //System.out.println("header is: "+header);
         //System.out.println("is header? "+header.get(0).isHeader());
         for (int i = 0; i<header.size(); i++) {
             //System.out.println(header.get(i).getTag().text());
-            if (header.get(i).isHeader() && header.get(i).tag.text().toLowerCase().contains(name.toLowerCase())) {
+            if (isHeader(header.get(i)) && header.get(i).text().toLowerCase().contains(name.toLowerCase())) {
                 return i;
             }
         }
@@ -92,14 +92,26 @@ public class jSoupTable {
      * I don't know why it'd be useful to have a mix of td and th tags in a row,
      * but I just need to know if this row is not a header-only.
      */
+    //TODO: remove this, because it's not being used
     public Boolean isRow(int index) {
-        List<Tag> tags = getRowTags(index);
-        for (Tag tag: tags) {
-            if (tag.tagname.equals("td")) {
+        List<Element> tags = getRowTags(index);
+        for (Element tag: tags) {
+            if (tag.tagName().equals("td")) {
                 return true;
             }
         }
         return false;
+    }
+    /**
+     * Here we'll verify if each element is a header (<th>) or not. Instead of isRow(), it verifies an
+     * element, not an entire row.
+     */
+    public Boolean isHeader(Element tag) {
+        if (tag.tagName().equals("th")) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     /**
@@ -109,9 +121,9 @@ public class jSoupTable {
      * These tables are mostly used to format HTML, besides being a bad technique. Since
      * the Sisgrad system uses fixed column size tables in some pages, I'm adding this.
      */
-    public List<Tag> getColumnTags(int columnIndex) {
-        List<Tag> columnValues = new ArrayList<>();
-        for (List<Tag> row: rows) {
+    public List<Element> getColumnTags(int columnIndex) {
+        List<Element> columnValues = new ArrayList<>();
+        for (List<Element> row: rows) {
             columnValues.add(row.get(columnIndex));
         }
         return columnValues;
@@ -121,8 +133,8 @@ public class jSoupTable {
      */
     public List<String> getColumnStrings(int columnIndex) {
         List<String> columnValues = new ArrayList<>();
-        for (List<Tag> row: rows) {
-            columnValues.add(row.get(columnIndex).getTag().text());
+        for (List<Element> row: rows) {
+            columnValues.add(row.get(columnIndex).text());
         }
         return columnValues;
     }
@@ -148,31 +160,6 @@ public class jSoupTable {
         return null;
     }
 
-    public class Tag {
-        private String tagname;
-        private Element tag;
-        public Tag (Element tag) {
-            this.tag = tag;
-            this.tagname = tag.tagName();
-        }
-        public String getTagname() {
-            return this.tagname;
-        }
-        public Element getTag() {
-            return this.tag;
-        }
-        public Boolean isHeader() {
-            if (this.tagname.equals("th")) {
-                return true;
-            } else {
-                return false;
-            }
-        }
-        public String toString() {
-            return "name: " + tagname + ", Element: " + tag;
-        }
-    }
-
     /**
      * Since it's useful to store tables in sqlLite, and each table row can have an arbitrary number
      * of columns, we're gonna use numberOfColumns to keep track of each row's columns quantity. Then,
@@ -191,12 +178,12 @@ public class jSoupTable {
         //Add 0 so we won't get exception when taking Collections.max(); (at least one element must exist or it'll throw exception)
         numberOfColumns.add(0);
         for (Element rowElement:tableRows) {//iterates through each row
-            List<Tag> rowTags = new ArrayList<>();
+            List<Element> rowTags = new ArrayList<>();
 
             Elements rowValues = rowElement.select("th, td");//<th> tags are header tags (which are column names), and <td> are header (or column values)
             numberOfColumns.add(rowValues.size());//adds the quantity of elements in this row, to numberOfColumns
             for (Element rowValue:rowValues) {//Iterates through rowElements to add each one to rowValuesList
-                rowTags.add(new Tag(rowValue));//add these tags to the list of row tags
+                rowTags.add(rowValue);//add these tags to the list of row tags
                 //Elements rowElements = rowValue.select("th, td");
             }
             rows.add(rowTags);//adds the list of tags to the list of rows
