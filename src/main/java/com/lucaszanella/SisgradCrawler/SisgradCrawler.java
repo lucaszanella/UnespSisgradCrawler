@@ -127,7 +127,7 @@ public class SisgradCrawler {
         public String locationRedirect;
         public PageError pageError;
 
-        public AcademicoAccessObject(String locationRedirect, PageError pageError) {
+        public AcademicoAccessObject(PageError pageError, String locationRedirect) {
             this.locationRedirect = locationRedirect;
             this.pageError = pageError;
         }
@@ -151,13 +151,13 @@ public class SisgradCrawler {
             if (pageafterLogin.location.contains("sistemas.unesp.br/sentinela/login.open.action")) {//if location is login page...
                 SentinelaLoginObject relogin = loginToSentinela();
                 if (relogin.pageError==null) {//if everything went ok
+                    //TODO: limit the recursive calls or it'll loop forever
                     accessAcademico();//Calls itself, now that it did login again
                 }
             }
         }
         PageError pageError = new PageError(pageafterLogin.responseCode, pageafterLogin.responseMessage);
-        return new AcademicoAccessObject(pageafterLogin.location, pageError);
-
+        return new AcademicoAccessObject(pageError, pageafterLogin.location);
     }
 
     //---GetMessage and its response object
