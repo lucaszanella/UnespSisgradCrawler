@@ -17,32 +17,42 @@ import java.util.*;
 
 public class SisgradCrawler {
     private Boolean debugMode = false;
+
     public String username;
     private String password;
+
     private static String protocol = "https";
     private static String domain = "sistemas.unesp.br";
+
+    /**
+     * Crazy number that I don't know the utility but won't work without it. Each page button
+     * in the messages page has a link to the page, and in this link there is this magicalNumber.
+     * I tried removing it and loading but it won't work, even tough the magicalNumber is the same
+     * for all page buttons, except the first page button.
+     */
     private String magicalNumber;
     private Boolean alreadyLoadedMagicalNumber = false;
+
     private SimpleHTTPSRequest sisgradRequest = new SimpleHTTPSRequest();
 
-    //mounts the URL to load a message page in the Sisgrad's webpage
-    private URL mountMessagePage(int page, String magicalNumber) throws IOException {
-        String thingsInTheEnd;
-        if (page != 0) {
-            thingsInTheEnd = "&p=" + page + "&d-" + magicalNumber + "-p=" + 2;
-        } else {
-            thingsInTheEnd = "";
-        }
-        return (new URL(protocol + "://" + domain + "/" + "sentinela" + "/" + "sentinela.openMessage.action?emailTipo=recebidas" + thingsInTheEnd));
-    }
-
-    private URL mountMessageLink(String id, int page) throws IOException {
-        return (new URL(protocol + "://" + domain + "/" + "sentinela" + "/" + "sentinela.viewMessage.action?txt_id=" + id + "&emailTipo=recebidas"));
-    }
-
+    /**
+     * Sisgrad initialization stores the username and password. Later, we just call loginToSentinela().
+     */
     public SisgradCrawler(String username, String password) {
         this.username = username;
         this.password = password;
+    }
+
+    /**
+     * Page error used by all the response objects returned by any of the methods below
+     */
+    public class PageError {
+        public String errorCode;
+        public String errorMessage;
+        public PageError(String errorCode, String errorMessage) {
+            this.errorCode = errorCode;
+            this.errorMessage = errorMessage;
+        }
     }
 
     //---Sentinela Login and its response object
@@ -53,7 +63,7 @@ public class SisgradCrawler {
         public LoginError loginError;
         public PageError pageError;
 
-        public SentinelaLoginObject(String locationRedirect, LoginError loginError, PageError pageError) {
+        public SentinelaLoginObject(PageError pageError, String locationRedirect, LoginError loginError) {
             this.locationRedirect = locationRedirect;
             this.loginError = loginError;
             this.pageError = pageError;
@@ -65,15 +75,6 @@ public class SisgradCrawler {
             public LoginError(Boolean wrongPassword, Boolean wrongEmail) {
                 this.wrongPassword = wrongPassword;
                 this.wrongEmail = wrongEmail;
-            }
-        }
-        //class to hold errors related to page loading
-        public class PageError {
-            public String errorCode;
-            public String errorMessage;
-            public PageError(String errorCode, String errorMessage) {
-                this.errorCode = errorCode;
-                this.errorMessage = errorMessage;
             }
         }
     }
@@ -106,20 +107,21 @@ public class SisgradCrawler {
 
             SentinelaLoginObject.LoginError loginError =
                     new SentinelaLoginObject(null, null, null).new LoginError(wrongPassword, wrongEmail);
-            SentinelaLoginObject.PageError pageError =
-                    new SentinelaLoginObject(null, null, null).new PageError(responseCode, responseMessage);
-            return new SentinelaLoginObject(locationRedirect, loginError, pageError);
+            PageError pageError = new PageError(responseCode, responseMessage);
+            return new SentinelaLoginObject(pageError,locationRedirect, loginError);
         } else if (locationRedirect.contains("sistemas.unesp.br/sentinela/sentinela.showDesktop.action")) {//login done because it redirected to this page
-            return new SentinelaLoginObject(locationRedirect, null, null);
+            return new SentinelaLoginObject(null, locationRedirect, null);
         }
         //If any http error happened, sent it back
         if (!responseCode.equals("302")) {
-            SentinelaLoginObject.PageError pageError =
-                    new SentinelaLoginObject(null, null, null).new PageError(responseCode, responseMessage);
-            return new SentinelaLoginObject(locationRedirect, null, pageError);
+            PageError pageError =
+                    new PageError(responseCode, responseMessage);
+            return new SentinelaLoginObject(pageError, locationRedirect, null);
         }
-        return new SentinelaLoginObject(locationRedirect, null, null);
+        return new SentinelaLoginObject(null, locationRedirect, null);
     }
+
+
     //---Academico Login and its response object
     //Result object to be sent back. 'error' property is null if no errors detected.
     public class AcademicoAccessObject {
@@ -130,18 +132,11 @@ public class SisgradCrawler {
             this.locationRedirect = locationRedirect;
             this.pageError = pageError;
         }
-        //class to hold errors related to page loading
-        public class PageError {
-            public String errorCode;
-            public String errorMessage;
-            public PageError(String errorCode, String errorMessage) {
-                this.errorCode = errorCode;
-                this.errorMessage = errorMessage;
-            }
-        }
     }
-    //Academico module is responsible to load things related to the student information like classes and so
-    //It's not a real login like loginToSentinela() but it's needed in order to gather /academico/ pages
+    /**
+     * Academico module is responsible to load things related to the student information like classes and so
+     * It's not a real login like loginToSentinela() but it's needed in order to gather /academico/ pages
+     */
     public AcademicoAccessObject accessAcademico() throws Exception {
         if (debugMode) {
             System.out.println("logging in to academico");
@@ -161,21 +156,9 @@ public class SisgradCrawler {
                 }
             }
         }
-        AcademicoAccessObject.PageError pageError = new AcademicoAccessObject(null, null).new PageError(pageafterLogin.responseCode, pageafterLogin.responseMessage);
+        PageError pageError = new PageError(pageafterLogin.responseCode, pageafterLogin.responseMessage);
         return new AcademicoAccessObject(pageafterLogin.location, pageError);
 
-    }
-    public String getMagicalNumber(SimpleHTTPSRequest.requestObject page) {
-        Document doc = Jsoup.parse(page.response);
-        Elements pageNumbers = doc.getElementsByClass("listagemTopo");
-        Elements pageLinks = pageNumbers.select("a");
-        //if (debugMode) {System.out.println("pageLinks: "+ pageLinks);}
-        String magicalNumber = "";
-        for (Element pageLink: pageLinks) {
-            magicalNumber = pageLink.attr("href").split("d-")[1].split("-p")[0]; //Crazy number that I don't know the utility but won't work without it
-            break; //They're all the same, so I break here, but if something change in the future, here's the loop so I can use :)
-        }
-        return magicalNumber;
     }
 
     //---GetMessage and its response object
@@ -187,16 +170,6 @@ public class SisgradCrawler {
         public GetMessagesResponse(PageError pageError,  List < Map < String, String >> messages) {
             this.pageError = pageError;
             this.messages = messages;
-        }
-
-        //class to hold errors related to page loading
-        public class PageError {
-            public String errorCode;
-            public String errorMessage;
-            public PageError(String errorCode, String errorMessage) {
-                this.errorCode = errorCode;
-                this.errorMessage = errorMessage;
-            }
         }
     }
     //Gets the messages from the system.
@@ -289,8 +262,8 @@ public class SisgradCrawler {
                 }
             }
         } else {
-            GetMessagesResponse.PageError pageError =
-                    new GetMessagesResponse(null, null).new PageError(responseCode, responseMessage);
+            PageError pageError =
+                    new PageError(responseCode, responseMessage);
             return new GetMessagesResponse(pageError, null);
         }
         //System.out.println(messagesList);
@@ -303,11 +276,13 @@ public class SisgradCrawler {
         public String title;
         public String message;
         public Map<String, String> attachments;
-        public GetMessageResponse(String author, String title, String message, Map<String, String> attachments) {
+        public PageError pageError;
+        public GetMessageResponse(PageError pageError,String author, String title, String message, Map<String, String> attachments) {
             this.author = author;
             this.title = title;
             this.message = message;
             this.attachments = attachments;
+            this.pageError = pageError;
         }
     }
 
@@ -316,83 +291,93 @@ public class SisgradCrawler {
         URL getMessagesURL = new URL(protocol + "://" + domain + "/" + "sentinela" + "/" + "sentinela.viewMessage.action?txt_id="+messageId+"&emailTipo=recebidas");
         if (debugMode) {System.out.println(" the url is "+ getMessagesURL.toString());}
         SimpleHTTPSRequest.requestObject messageRequest = sisgradRequest.SimpleHTTPSRequest(getMessagesURL, null);
-        Document doc = Jsoup.parse(messageRequest.response);
-        Element messageForm = doc.select("form").get(0);//gets the first form. TODO: change this to get the largest form or something like that
-        Element messageTable = messageForm.select("table").get(0);
-        jSoupTable table = new jSoupTable(messageTable);
-        //Since this is not a table with header, we can't get columns indexes, so we'll need to iterate through each row,
-        //then in each row, we're gonna search the column values that match our needs.
-        String from = null;
-        String title = null;
-        String attachments = null;
-        String message = null;
-        Map<String, String> attachmentsList = new HashMap<>();
+        if (messageRequest.responseCode.equals("200")) {//HTTP OK with no redirection
+            Document doc = Jsoup.parse(messageRequest.response);
+            Element messageForm = doc.select("form").get(0);//gets the first form. TODO: change this to get the largest form or something like that
+            Element messageTable = messageForm.select("table").get(0);
+            jSoupTable table = new jSoupTable(messageTable);
+            //Since this is not a table with header, we can't get columns indexes, so we'll need to iterate through each row,
+            //then in each row, we're gonna search the column values that match our needs.
+            String from = null;
+            String title = null;
+            String attachments = null;
+            String message = null;
+            Map<String, String> attachmentsList = new HashMap<>();
 
-        for (int k = 0; k<table.getAllRows().size(); k++) {
-            List<Element> tags = table.getAllRows().get(k);
-            //for (List<jSoupTable.Tag> tags: table.getAllRows()) {
-            for (int i=0; i<tags.size(); i++) {
-                //Identify the sender of the message
-                if (tags.get(0).text().toLowerCase().contains("de") && tags.size()==2) {
-                    from = tags.get(1).text();
-                }
-                //Identify the subject or title of the message
-                if (tags.get(0).text().toLowerCase().contains("assunto") && tags.size()==2) {
-                    title = tags.get(1).text();
-                }
-                //Identify the attachments of the message
-                if (tags.get(0).text().toLowerCase().contains("anexo") && tags.size()==2) {
-                    Elements linksOfAttachments  = tags.get(1).select("a");
-                    //containsAttachments = true;
-                    for (Element linkOfAttachment:linksOfAttachments) {
-                        //System.out.println("linkOfAttachment: "+linkOfAttachment.html()+"attr: "+linkOfAttachment.attr("href"));
-                        attachmentsList.put(linkOfAttachment.text(),linkOfAttachment.attr("href"));
+            for (int k = 0; k<table.getAllRows().size(); k++) {
+                List<Element> tags = table.getAllRows().get(k);
+                //for (List<jSoupTable.Tag> tags: table.getAllRows()) {
+                for (int i=0; i<tags.size(); i++) {
+                    //Identify the sender of the message
+                    if (tags.get(0).text().toLowerCase().contains("de") && tags.size()==2) {
+                        from = tags.get(1).text();
                     }
+                    //Identify the subject or title of the message
+                    if (tags.get(0).text().toLowerCase().contains("assunto") && tags.size()==2) {
+                        title = tags.get(1).text();
+                    }
+                    //Identify the attachments of the message
+                    if (tags.get(0).text().toLowerCase().contains("anexo") && tags.size()==2) {
+                        Elements linksOfAttachments  = tags.get(1).select("a");
+                        //containsAttachments = true;
+                        for (Element linkOfAttachment:linksOfAttachments) {
+                            //System.out.println("linkOfAttachment: "+linkOfAttachment.html()+"attr: "+linkOfAttachment.attr("href"));
+                            attachmentsList.put(linkOfAttachment.text(),linkOfAttachment.attr("href"));
+                        }
 
-                }
-                /**
-                 * This is the most important part, the message content. Several techniques were
-                 * used to identify the message, but attention, web crawling is never perfect :(.
-                 * The only unique characteristics of the messages row was having bgcolor=white or
-                 * having a lots of <br> (in case of multiline messages). In both cases, the column size
-                 * was 1.
-                 */
-                if      (
-                                (!tags.get(0).select("td").isEmpty()
-                                && tags.get(0).select("td").attr("bgcolor").equals("white")
-                                && tags.size()==1)
-                                ||
-                                (tags.get(0).getElementsByTag("br").size()>2 && tags.size()==1)
-                        )
-                {
-                    //System.out.println("SELECTION: ");
-                    //System.out.println("first: "+(!tags.get(0).getTag().select("td").isEmpty()
-                            //&& tags.get(0).getTag().select("td").attr("bgcolor").equals("white")
-                            //&& tags.size()==1));
-                    //System.out.println("second: "+(tags.get(0).getTag().getElementsByTag("br").size()>2 && tags.size()==1));
+                    }
                     /**
-                     * Sometimes is useful to request for the HTML content of the message, other times for the text content.
-                     * I could always return the HTML and extract the text with code but it requires a minimum API greater
-                     * than the one I am supporting in Android, so let's parse the HTML or text content here and send it.
-                     * PS: I could have used jSoup in the Android app to extract the text, but I wanted to use here since
-                     * it's already loaded in memory.
+                     * This is the most important part, the message content. Several techniques were
+                     * used to identify the message, but attention, web crawling is never perfect :(.
+                     * The only unique characteristics of the messages row was having bgcolor=white or
+                     * having a lots of <br> (in case of multiline messages). In both cases, the column size
+                     * was 1.
                      */
-                    if (html) {
-                        message = tags.get(0).html();
-                    } else {
-                        message = tags.get(0).text();
+                    if      (
+                            (!tags.get(0).select("td").isEmpty()
+                                    && tags.get(0).select("td").attr("bgcolor").equals("white")
+                                    && tags.size()==1)
+                                    ||
+                                    (tags.get(0).getElementsByTag("br").size()>2 && tags.size()==1)
+                            )
+                    {
+                        /*
+                        System.out.println("SELECTION: ");
+                        System.out.println("first: "+(!tags.get(0).getTag().select("td").isEmpty()
+                        && tags.get(0).getTag().select("td").attr("bgcolor").equals("white")
+                        && tags.size()==1));
+                        System.out.println("second: "+(tags.get(0).getTag().getElementsByTag("br").size()>2 && tags.size()==1));
+                        */
+                        /*
+                         * Sometimes is useful to request for the HTML content of the message, other times for the text content.
+                         * I could always return the HTML and extract the text with code but it requires a minimum API greater
+                         * than the one I am supporting in Android, so let's parse the HTML or text content here and send it.
+                         * PS: I could have used jSoup in the Android app to extract the text, but I wanted to use here since
+                         * it's already loaded in memory.
+                         */
+                        if (html) {
+                            message = tags.get(0).html();
+                        } else {
+                            message = tags.get(0).text();
+                        }
                     }
                 }
             }
+            return new GetMessageResponse(null, from, title, message, attachmentsList);
+        } else if (messageRequest.location!=null && messageRequest.responseCode.equals("302")) {//login probably timed out, server issued redirection to login page
+            if (messageRequest.location.contains("sistemas.unesp.br/sentinela/login.open.action")) {//if location is login page...
+                SentinelaLoginObject reLogin = loginToSentinela();
+                if (reLogin.pageError==null) {
+                    getMessage(messageId, html);//Calls itself, now that it did login again
+                }
+            }
+        } else {
+            PageError pageError =
+                    new PageError(messageRequest.responseCode, messageRequest.responseMessage);
+            return new GetMessageResponse(pageError, null, null, null, null);
         }
-        /*
-        System.out.println("title: "+title);
-        System.out.println("from: "+from);
-        System.out.println("attachments: "+attachmentsList);
-        System.out.println("message: "+message);
-        */
-
-        return new GetMessageResponse(from, title, message, attachmentsList);
+        //System.out.println(messagesList);
+        return new GetMessageResponse(null, null, null, null, null);
     }
     //---getClasses
     public class GetClassesResponse{
@@ -401,16 +386,6 @@ public class SisgradCrawler {
         public GetClassesResponse(PageError pageError, Map<String, Map<String, ClassInfo>> week) {
             this.pageError = pageError;
             this.week = week;
-        }
-
-        //class to hold errors related to page loading
-        public class PageError {
-            public String errorCode;
-            public String errorMessage;
-            public PageError(String errorCode, String errorMessage) {
-                this.errorCode = errorCode;
-                this.errorMessage = errorMessage;
-            }
         }
     }
     public class ClassInfo {
@@ -480,7 +455,6 @@ public class SisgradCrawler {
                 }
                 week.put(day, dayColumn);
             }
-            //System.out.println(week);
             return new GetClassesResponse(null, week);
         } else if (classesRequestRedirectedAgain.location!=null && classesRequestRedirectedAgain.responseCode.equals("302")) {//login probably timed out, server issued redirection to login page
             if (classesRequestRedirectedAgain.location.contains("sistemas.unesp.br/sentinela/login.open.action")) {//if location is login page...
@@ -490,8 +464,8 @@ public class SisgradCrawler {
                 }
             }
         } else {
-            GetClassesResponse.PageError pageError =
-                    new GetClassesResponse(null, null).new PageError(classesRequestRedirectedAgain.responseCode, classesRequestRedirectedAgain.responseMessage);
+            PageError pageError =
+                    new PageError(classesRequestRedirectedAgain.responseCode, classesRequestRedirectedAgain.responseMessage);
             return new GetClassesResponse(pageError, null);
         }
         return (null);
@@ -533,5 +507,34 @@ public class SisgradCrawler {
         //System.out.println(gradlesJsoupTable.getAllRowStrings());
         //System.out.println("ok, let's access"+ gradesRequest.location+"...");
         return null;
+    }
+
+    //mounts the URL to load a message page in the Sisgrad's web page
+    private URL mountMessagePage(int page, String magicalNumber) throws IOException {
+        String thingsInTheEnd;
+        if (page != 0) {
+            thingsInTheEnd = "&p=" + page + "&d-" + magicalNumber + "-p=" + 2;
+        } else {
+            thingsInTheEnd = "";
+        }
+        return (new URL(protocol + "://" + domain + "/" + "sentinela" + "/" + "sentinela.openMessage.action?emailTipo=recebidas" + thingsInTheEnd));
+    }
+
+    private URL mountMessageLink(String id, int page) throws IOException {
+        return (new URL(protocol + "://" + domain + "/" + "sentinela" + "/" + "sentinela.viewMessage.action?txt_id=" + id + "&emailTipo=recebidas"));
+    }
+
+    //TODO: add safe splitting to magicalNumber
+    public String getMagicalNumber(SimpleHTTPSRequest.requestObject page) {
+        Document doc = Jsoup.parse(page.response);
+        Elements pageNumbers = doc.getElementsByClass("listagemTopo");
+        Elements pageLinks = pageNumbers.select("a");
+        //if (debugMode) {System.out.println("pageLinks: "+ pageLinks);}
+        String magicalNumber = "";
+        for (Element pageLink: pageLinks) {
+            magicalNumber = pageLink.attr("href").split("d-")[1].split("-p")[0];
+            break; //They're all the same, so I break here, but if something change in the future, here's the loop so I can use :)
+        }
+        return magicalNumber;
     }
 }

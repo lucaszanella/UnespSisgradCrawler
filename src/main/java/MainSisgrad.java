@@ -83,7 +83,7 @@ public class MainSisgrad {
                 SisgradCrawler.GetClassesResponse classesResponse = sisgradCrawler.getClasses();
                 System.out.println("first class at 'Segunda'");
                 System.out.println(classesResponse.week.get("segunda").get(
-                        new ArrayList<>(classesResponse.week.get("segunda").keySet()).get(0)));
+                        new ArrayList<>(classesResponse.week.get("segunda").keySet()).get(0)));//ArrayList is needed because keySet() returns a set, in which we cannot iterate
                 System.out.println("classes at 'Segunda'");
                 System.out.println(classesResponse.week.get("segunda"));
                 System.out.println("getting grades...");
