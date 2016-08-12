@@ -90,7 +90,6 @@ public class MainSisgrad {
                 SisgradCrawler.GetGradesResponse gradesResponse = sisgradCrawler.getGrades();
             }
         }
-
         //Creates request threads
         //List < Thread > requestThreads = new ArrayList < Thread > ();
         //initializeMessageLoaderThread(requestThreads, login, 0);

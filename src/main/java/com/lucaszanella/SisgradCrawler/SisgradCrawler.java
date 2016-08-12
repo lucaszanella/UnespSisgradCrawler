@@ -121,7 +121,6 @@ public class SisgradCrawler {
         return new SentinelaLoginObject(null, locationRedirect, null);
     }
 
-
     //---Academico Login and its response object
     //Result object to be sent back. 'error' property is null if no errors detected.
     public class AcademicoAccessObject {
