@@ -452,11 +452,9 @@ public class SisgradCrawler {
             for (String day : daysOfWeek) {//For each day, we're gonna add an entry in the 'week' Map
                 Map<String, ClassInfo> dayColumn = new LinkedHashMap<>();//This is the Map<Hour, Class> which will be mounted for each day of the week
                 for (int i = 0; i < days.getAllRows().size(); i++) {
-                    if (days.isRow(i)) {//it could be a header
+                    if (days.isRow(i) && days.getRowTags(i).get(days.getColumnIndex(day, 0)).hasText()) {//it could be a header
                         String hourOfClass = days.getRowTags(i).get(0).text();
                         //TODO: tolerate ç as c and á, é, í, ... as a, e, i.
-                        //System.out.println("day "+day+" has index "+days.getColumnIndex(day, 0));
-                        //TODO: VERIFY IF IT'S NOT EMPTY AND IF THE SPLIT IS POSSIBLE
                         //System.out.println("DEBUG SPLIT: "+days.getRowTags(i).get(days.getColumnIndex(day, 0)).text());
                         String classTitle = "";
                         String classCode = "";

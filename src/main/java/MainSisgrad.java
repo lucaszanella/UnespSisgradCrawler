@@ -57,7 +57,7 @@ public class MainSisgrad {
                         loginObject.pageError.errorMessage
                 );
             } else {
-                System.out.println("logged in, location Redirect is:" + loginObject.locationRedirect);
+                System.out.println("logged in, location Redirect is: " + loginObject.locationRedirect);
                 System.out.println("now gonna push content from server...");
 
                 SisgradCrawler.GetMessagesResponse messages = sisgradCrawler.getMessages(0);//page 0
@@ -81,8 +81,11 @@ public class MainSisgrad {
                 }
                 System.out.println("getting classes...");
                 SisgradCrawler.GetClassesResponse classesResponse = sisgradCrawler.getClasses();
+                System.out.println("first class at 'Segunda'");
                 System.out.println(classesResponse.week.get("segunda").get(
-                        new ArrayList<>(classesResponse.week.get("segunda").keySet()).get(3)));
+                        new ArrayList<>(classesResponse.week.get("segunda").keySet()).get(0)));
+                System.out.println("classes at 'Segunda'");
+                System.out.println(classesResponse.week.get("segunda"));
                 System.out.println("getting grades...");
                 SisgradCrawler.GetGradesResponse gradesResponse = sisgradCrawler.getGrades();
             }
