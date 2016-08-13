@@ -13,7 +13,7 @@ import java.net.URLEncoder;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
-//TODO: prepare this and other Crawlers to load all components in the page in order to perfectly simulate a computer access
+//TODO: prepare this and other web crawlers to load all components in the page in order to perfectly simulate a computer access
 
 public class SisgradCrawler {
     private Boolean debugMode = false;
@@ -34,6 +34,26 @@ public class SisgradCrawler {
     private Boolean alreadyLoadedMagicalNumber = false;
 
     private SimpleHTTPSRequest sisgradRequest = new SimpleHTTPSRequest();
+
+    public long lastAcademicoSuccess = 0;//0 as its initial value, then the first access will assign the current unix date to it
+    public long lastLoginSuccess = 0;//same as above
+
+    public static int ONE_MINUTE = 60; //1 minute in seconds
+    public static int LOGIN_TIMEOUT = ONE_MINUTE*8;//will try to login if last login was 8 minutes ago or more
+    public static int ACADEMICO_TIMEOUT = LOGIN_TIMEOUT;//time to decide that the academico session is still open
+
+    public static int MAX_RECURSIVITY = 3;//number of times a function can call itself to resolve session timeout
+
+    //Result codes
+    public static final int OK = 0;
+    public static final int WRONG_EMAIL = 1;
+    public static final int WRONG_PASSWORD = 2;
+    public static final int PAGE_ERROR = 3;
+    public static final int TIMEOUT = 4;
+    public static final int NOT_FOUND = 5;
+    public static final int GENERIC_ERROR = 6;
+    public static final int NOT_CONNECTED = 7;
+    public static final int RESUMED = 8;
 
     /**
      * Sisgrad initialization stores the username and password. Later, we just call loginToSentinela().
@@ -81,7 +101,7 @@ public class SisgradCrawler {
     //Logs to the 'sentinela' module inside Sisgrad's system. It's responsible to load messages.
     public SentinelaLoginObject loginToSentinela() throws Exception {
         //Mounts POST query that's gonna be sent to the login page
-        String postQuery = "txt_usuario=" + URLEncoder.encode(username, "UTF-8") + "&" + "txt_senha=" + URLEncoder.encode(password, "UTF-8");
+        String postQuery = "txt_usuario=" + URLEncoder.encode(this.username, "UTF-8") + "&" + "txt_senha=" + URLEncoder.encode(this.password, "UTF-8");
         if (debugMode) {
             System.out.println("logging in to sentinela");
         }
@@ -94,8 +114,9 @@ public class SisgradCrawler {
         String responseMessage = loginRequest.responseMessage;
         Boolean wrongPassword = false;
         Boolean wrongEmail = false;
-        //if there's no location http command, then the login didn't succeed and we're back at the same page
-        //this is a signal that the information was wrong
+        /*if there's no location http command, then the login didn't succeed and we're back at the same page
+         *this is a signal that the information was wrong
+         */
         if (locationRedirect==null || (locationRedirect.equals("") || locationRedirect.length()==0)) {
             //if the login didn't succeed, it could be wrong password or any other thing, so let's detect it!
             Element doc = Jsoup.parse(response);
@@ -160,6 +181,137 @@ public class SisgradCrawler {
         return new AcademicoAccessObject(pageError, pageafterLogin.location);
     }
 
+    /**
+     * Whenever a method calls the Sisgrad's server, it can be surprised by some page redirections that are not
+     * intended to be part of the experience. These redirections are mainly caused by session timeouts. It turns
+     * out that each URL path of the Sisgrad's system can point to a different system, like /sentinela and /academico,
+     * each one with its own timeout limit. So, the method below answers if the call successfully fixed the redirection
+     * problem by reopening a session. If true, the method that called fixedRedirection() will call itself again to
+     * deliver the requested information by the app. The recursivity number is passed in and decreased every time so
+     * when it reaches -1, the function stops calling itself, to prevent infinite recursion, in case the system
+     * is unable to fix itself.
+     */
+    public Boolean fixedRedirection(Integer recursivity, String location, String responseCode) {
+        if (location!=null && responseCode.equals("302")) {//session probably timed out, server issued redirection to login page
+            if (location.contains("sistemas.unesp.br/sentinela")) {//if location is login page, it means login timed out
+                try {
+                    SentinelaLoginObject reLogin = loginToSentinela();
+                    if (reLogin.pageError==null) {
+                        System.out.println("redirection to "+location+", should call itself recursively now");
+                        if (recursivity>=0){
+                            return true;
+                        } else {
+                            return false;
+                        }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    return false;
+                }
+            } else if (location.contains("sistemas.unesp.br/academico")) {//if location is academico page, academico session timed out
+                //TODO: support academico redirection
+                return false;
+            } else {
+                System.out.println("unrecognized redirection: "+ location);
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+    /**
+     * Synchronization is reaaaally important here. Every method of SisgradCrawler will
+     * call this to know if they must reLogin (because it times out after like, 10 minutes), or if
+     * they can just proceed with the access of the Sisgrad elements. Every method has a built in
+     * functionality that tries to reLogin if they get redirected to the login page when trying to
+     * access anything, but it's better not to trust it and instead, do the login again when we feel
+     * it's going to timeout.
+     * So, since every fragment uses this method, synchronization means that only one call will be
+     * active in the app. So if the login timed out and 2 fragments call doOrResumeLogin, one will
+     * actually log in, and the other will wait. When the first finished, the second will start
+     * running, but it will see that a login has just been made and will resume the login (that is,
+     * will return a 'resumed' value to the caller, which means that the login is healthy and he can
+     * continue with the calls)
+     */
+    public class DoOrResumeLoginResponseObject {
+        public Integer code;
+        public PageError pageError;
+        public SisgradCrawler.SentinelaLoginObject loginObject;
+        public DoOrResumeLoginResponseObject(Integer code, PageError pageError, SisgradCrawler.SentinelaLoginObject loginObject) {
+            this.code = code;
+            this.pageError = pageError;
+            this.loginObject = loginObject;
+        }
+
+    }
+    //Just wrappers to call doOrResumeLoginWrapped with or without forceRelogin option
+    public synchronized DoOrResumeLoginResponseObject doOrResumeLogin() {
+        return doOrResumeLoginWrapped(false);
+    }
+    public synchronized DoOrResumeLoginResponseObject forceLogin() {
+        return doOrResumeLoginWrapped(true);
+    }
+
+    private synchronized DoOrResumeLoginResponseObject doOrResumeLoginWrapped(Boolean forceRelogin) {
+        //TODO: identify if never logged in, or if login is about to timeout. Differentiate between timed out, about to time out, and session open
+        System.out.println("DoOrResumeLogin called");
+        Long currentUnix = new Date().getTime()/1000;
+        /*
+        * Just re-login, don't bother deciding if it's a necessity. Normally will be called when
+        * a request got a LoginTimedOut exception because it was redirected by a location HTTP header.
+        */
+        if (forceRelogin) {
+            System.out.println("forcing relogin");
+            try {
+                SisgradCrawler.SentinelaLoginObject loginObject = this.loginToSentinela();
+                //TODO: verify force reLogin result
+                System.out.println("force login successful");
+                return new DoOrResumeLoginResponseObject(OK, null, loginObject);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            return null;
+            //TODO: break this if in the right way
+        }
+        /*
+        * Now we'll verify if the login timed out or not and fix this if it did, or just return RESUMED if it didn't
+        */
+        if ((currentUnix - this.lastLoginSuccess) >= LOGIN_TIMEOUT || this.lastLoginSuccess == 0) {//lastLoginSuccess==0 means it was just created, never assigned a value
+            System.out.println("logging in...");
+            try {
+                SisgradCrawler.SentinelaLoginObject loginObject = this.loginToSentinela();
+                if (loginObject.loginError != null) {
+                    System.out.println("something wrong with login information:");
+                    if (loginObject.loginError.wrongEmail) {
+                        System.out.println("wrong email");
+                        return new DoOrResumeLoginResponseObject(WRONG_EMAIL, null, loginObject);
+                    }
+                    if (loginObject.loginError.wrongPassword) {
+                        System.out.println("wrong password");
+                        return new DoOrResumeLoginResponseObject(WRONG_PASSWORD, null, loginObject);
+                    }
+                } else if (loginObject.pageError != null) {
+                    System.out.println("error with the page loading, code is: "
+                            + loginObject.pageError.errorCode + " message is " +
+                            loginObject.pageError.errorMessage
+                    );
+                    return new DoOrResumeLoginResponseObject(PAGE_ERROR, loginObject.pageError, loginObject);
+                } else {
+                    this.lastLoginSuccess = new Date().getTime() / 1000;//current unix time
+                    return new DoOrResumeLoginResponseObject(OK, null, loginObject);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+        } else if ((currentUnix - this.lastLoginSuccess) < LOGIN_TIMEOUT) {
+            //Didn't timeout, let's just resume it
+            System.out.println("login resumed");
+            return new DoOrResumeLoginResponseObject(RESUMED, null, null);
+        }
+        return null;
+    }
+
     //---GetMessage and its response object
 
     //Object to return from GetMessagesResponse
@@ -171,8 +323,11 @@ public class SisgradCrawler {
             this.messages = messages;
         }
     }
-    //Gets the messages from the system.
     public GetMessagesResponse getMessages(int page) throws Exception {
+        return getMessagesWrapped(page, MAX_RECURSIVITY);
+    }
+    //Gets the messages from the system.
+    private GetMessagesResponse getMessagesWrapped(int page, int recursivity) throws Exception {
         /*
             Getting messages for pages above 0 is tricky, the link has some number that I couldn't figure out
             the pattern for its existence, so I just extract it from the '2, 3, 4, ...' buttons in the page,
@@ -214,8 +369,7 @@ public class SisgradCrawler {
         String responseCode = pageToReadMessages.responseCode;
         String response = pageToReadMessages.response;
         String responseMessage = pageToReadMessages.responseMessage;
-        //System.out.println("responseCode: "+responseCode+" responseMessage: "+responseMessage);
-        //if there's no locationRedirect, there was no login timeout
+        //If the HTTP code is 200, there was no login timeout, else if it's 302, there was and we must deal with it.
         if (responseCode.equals("200")) {//HTTP OK with no redirection
             Document doc = Jsoup.parse(response);
             Element table = doc.getElementById("destinatario");
@@ -253,21 +407,17 @@ public class SisgradCrawler {
             }
             return new GetMessagesResponse(null, messagesList);
 
-        } else if (locationRedirect!=null && responseCode.equals("302")) {//login probably timed out, server issued redirection to login page
-            if (locationRedirect.contains("sistemas.unesp.br/sentinela/login.open.action")) {//if location is login page...
-                SentinelaLoginObject relogin = loginToSentinela();
-                if (relogin.pageError==null) {
-                    getMessages(page);//Calls itself, now that it did login again
-                }
-            }
+        } else if (fixedRedirection(recursivity, locationRedirect, responseCode)) {
+            /* If fixedRedirection() returned true, it means it successfully fixed the redirection, which was
+             * probably caused by a session timeout, so in order to not interrupt the method call, we return
+             * the result of the new getMessagesWrapped, which will PROBABLY not suffer from another redirection,
+             * but in case it happens indefinitely, recursivity will decrease until fixedRedirection will return false
+             * and everything will stop.
+             */
+            return getMessagesWrapped(page, (recursivity-1));
         } else {
-            PageError pageError =
-                    new PageError(responseCode, responseMessage);
-            return new GetMessagesResponse(pageError, null);
+            return new GetMessagesResponse(new PageError(responseCode, responseMessage), null);
         }
-        //System.out.println(messagesList);
-        return new GetMessagesResponse(null, null);
-        //System.out.println(pageToReadMessages.response);
     }
     //---GetMessage and its response object
     public class GetMessageResponse{
@@ -284,14 +434,20 @@ public class SisgradCrawler {
             this.pageError = pageError;
         }
     }
-
-    public GetMessageResponse getMessage (String messageId, Boolean html) throws Exception {//this method is a mess. TODO: make it better
+    public GetMessageResponse getMessage (String messageId, Boolean html) throws Exception {
+        return getMessageWrapped(messageId, html, -1);
+    }
+    public GetMessageResponse getMessageWrapped (String messageId, Boolean html, Integer recursivity) throws Exception {//this method is a mess. TODO: make it better
         //System.out.println("hi, i'm getting message for id "+ messageId );
         URL getMessagesURL = new URL(protocol + "://" + domain + "/" + "sentinela" + "/" + "sentinela.viewMessage.action?txt_id="+messageId+"&emailTipo=recebidas");
         if (debugMode) {System.out.println(" the url is "+ getMessagesURL.toString());}
         SimpleHTTPSRequest.requestObject messageRequest = sisgradRequest.SimpleHTTPSRequest(getMessagesURL, null);
-        if (messageRequest.responseCode.equals("200")) {//HTTP OK with no redirection
-            Document doc = Jsoup.parse(messageRequest.response);
+        String locationRedirect = messageRequest.location;
+        String responseCode = messageRequest.responseCode;
+        String response = messageRequest.response;
+        String responseMessage = messageRequest.responseMessage;
+        if (responseCode.equals("200")) {//HTTP OK with no redirection
+            Document doc = Jsoup.parse(response);
             Element messageForm = doc.select("form").get(0);//gets the first form. TODO: change this to get the largest form or something like that
             Element messageTable = messageForm.select("table").get(0);
             jSoupTable table = new jSoupTable(messageTable);
@@ -347,6 +503,7 @@ public class SisgradCrawler {
                         && tags.size()==1));
                         System.out.println("second: "+(tags.get(0).getTag().getElementsByTag("br").size()>2 && tags.size()==1));
                         */
+
                         /*
                          * Sometimes is useful to request for the HTML content of the message, other times for the text content.
                          * I could always return the HTML and extract the text with code but it requires a minimum API greater
@@ -363,20 +520,17 @@ public class SisgradCrawler {
                 }
             }
             return new GetMessageResponse(null, from, title, message, attachmentsList);
-        } else if (messageRequest.location!=null && messageRequest.responseCode.equals("302")) {//login probably timed out, server issued redirection to login page
-            if (messageRequest.location.contains("sistemas.unesp.br/sentinela/login.open.action")) {//if location is login page...
-                SentinelaLoginObject reLogin = loginToSentinela();
-                if (reLogin.pageError==null) {
-                    getMessage(messageId, html);//Calls itself, now that it did login again
-                }
-            }
+        } else if (fixedRedirection(recursivity, locationRedirect, responseCode)) {
+            /* If fixedRedirection() returned true, it means it successfully fixed the redirection, which was
+             * probably caused by a session timeout, so in order to not interrupt the method call, we return
+             * the result of the new getMessagesWrapped, which will PROBABLY not suffer from another redirection,
+             * but in case it happens indefinitely, recursivity will decrease until fixedRedirection will return false
+             * and everything will stop.
+             */
+            return getMessageWrapped(messageId, html, (recursivity-1));
         } else {
-            PageError pageError =
-                    new PageError(messageRequest.responseCode, messageRequest.responseMessage);
-            return new GetMessageResponse(pageError, null, null, null, null);
+            return new GetMessageResponse(new PageError(responseCode, responseMessage), null, null, null, null);
         }
-        //System.out.println(messagesList);
-        return new GetMessageResponse(null, null, null, null, null);
     }
     //---getClasses
     public class GetClassesResponse{
@@ -400,16 +554,22 @@ public class SisgradCrawler {
             return("Class name: "+this.name+", Class code: "+this.code+" Class location:" +this.place);
         }
     }
-
-    //Gets all the 'classes' (by classes I mean, the classes the student must go)
     public GetClassesResponse getClasses() throws Exception {
+        return getClassesWrapped(MAX_RECURSIVITY);
+    }
+    //Gets all the 'classes' (by classes I mean, the classes the student must go)
+    private GetClassesResponse getClassesWrapped(int recursivity) throws Exception {
         URL getClassesURL = new URL(protocol + "://" + domain + "/" + "academico" + "/aluno/cadastro.horarioAulas.action");
         SimpleHTTPSRequest.requestObject classesRequest = sisgradRequest.SimpleHTTPSRequest(getClassesURL, null);
 
         SimpleHTTPSRequest.requestObject classesRequestRedirected = sisgradRequest.SimpleHTTPSRequest(new URL(classesRequest.location), null);
         SimpleHTTPSRequest.requestObject classesRequestRedirectedAgain = sisgradRequest.SimpleHTTPSRequest(new URL(classesRequestRedirected.location), null);
-        if (classesRequestRedirectedAgain.responseCode.equals("200")) {
-            Document doc = Jsoup.parse(classesRequestRedirectedAgain.response);
+        String locationRedirect = classesRequestRedirectedAgain.location;
+        String responseCode = classesRequestRedirectedAgain.responseCode;
+        String response = classesRequestRedirectedAgain.response;
+        String responseMessage = classesRequestRedirectedAgain.responseMessage;
+        if (responseCode.equals("200")) {
+            Document doc = Jsoup.parse(response);
             //Tables
             Element classesInfo = doc.getElementsByClass("listagem").first();
             Element daysTable = doc.select("table").get(1);
@@ -455,19 +615,17 @@ public class SisgradCrawler {
                 week.put(day, dayColumn);
             }
             return new GetClassesResponse(null, week);
-        } else if (classesRequestRedirectedAgain.location!=null && classesRequestRedirectedAgain.responseCode.equals("302")) {//login probably timed out, server issued redirection to login page
-            if (classesRequestRedirectedAgain.location.contains("sistemas.unesp.br/sentinela/login.open.action")) {//if location is login page...
-                SentinelaLoginObject relogin = loginToSentinela();
-                if (relogin.pageError==null) {
-                    getClasses();//Calls itself, now that it did login again
-                }
-            }
+        } else if (fixedRedirection(recursivity, locationRedirect, responseCode)) {
+            /* If fixedRedirection() returned true, it means it successfully fixed the redirection, which was
+             * probably caused by a session timeout, so in order to not interrupt the method call, we return
+             * the result of the new getMessagesWrapped, which will PROBABLY not suffer from another redirection,
+             * but in case it happens indefinitely, recursivity will decrease until fixedRedirection will return false
+             * and everything will stop.
+             */
+            return getClassesWrapped(recursivity-1);
         } else {
-            PageError pageError =
-                    new PageError(classesRequestRedirectedAgain.responseCode, classesRequestRedirectedAgain.responseMessage);
-            return new GetClassesResponse(pageError, null);
+            return new GetClassesResponse(new PageError(responseCode, responseMessage), null);
         }
-        return (null);
     }
 
     public class GetGradesResponse{

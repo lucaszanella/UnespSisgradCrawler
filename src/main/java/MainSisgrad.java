@@ -42,24 +42,25 @@ public class MainSisgrad {
         if (true) {
             //Creates the login object
             SisgradCrawler sisgradCrawler = new SisgradCrawler(username, password);
-            SisgradCrawler.SentinelaLoginObject loginObject = sisgradCrawler.loginToSentinela();//logs in
-            if (loginObject.loginError != null) {
+            SisgradCrawler.DoOrResumeLoginResponseObject loginObject = sisgradCrawler.doOrResumeLogin();//logs in
+            System.out.println("logged, now wait");
+            //SisgradCrawler.DoOrResumeLoginResponseObject testObject = sisgradCrawler.doOrResumeLogin();//logs in
+            if (loginObject.pageError != null) {
                 System.out.println("something wrong with login information:");
-                if (loginObject.loginError.wrongEmail) {
+                if (loginObject.code==SisgradCrawler.WRONG_EMAIL) {
                     System.out.print(" wrong email");
-                }
-                if (loginObject.loginError.wrongPassword) {
+                } else if (loginObject.code==SisgradCrawler.WRONG_PASSWORD) {
                     System.out.print(" wrong password");
+                } else {
+                    System.out.println("error with the page loading, code is: "
+                            + loginObject.pageError.errorCode + " message is " +
+                            loginObject.pageError.errorMessage);
                 }
-            } else if (loginObject.pageError != null) {
-                System.out.println("error with the page loading, code is: "
-                        + loginObject.pageError.errorCode + " message is " +
-                        loginObject.pageError.errorMessage
-                );
             } else {
-                System.out.println("logged in, location Redirect is: " + loginObject.locationRedirect);
+                System.out.println("logged in, location Redirect is: " + loginObject.loginObject.locationRedirect);
                 System.out.println("now gonna push content from server...");
-
+                System.out.println("let's wait 11 minutes first...");
+                Thread.sleep(60*32*1000);
                 SisgradCrawler.GetMessagesResponse messages = sisgradCrawler.getMessages(0);//page 0
                 System.out.println("first message, metadata: " + messages.messages.get(0));
                 String mId = sisgradCrawler.getMessages(0).messages.get(0).get("messageId");
