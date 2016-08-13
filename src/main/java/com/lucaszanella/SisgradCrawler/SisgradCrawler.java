@@ -192,6 +192,7 @@ public class SisgradCrawler {
      * is unable to fix itself.
      */
     public Boolean fixedRedirection(Integer recursivity, String location, String responseCode) {
+        Boolean result = false;
         if (location!=null && responseCode.equals("302")) {//session probably timed out, server issued redirection to login page
             if (location.contains("sistemas.unesp.br/sentinela")) {//if location is login page, it means login timed out
                 try {
@@ -199,25 +200,19 @@ public class SisgradCrawler {
                     if (reLogin.pageError==null) {
                         System.out.println("redirection to "+location+", should call itself recursively now");
                         if (recursivity>=0){
-                            return true;
-                        } else {
-                            return false;
+                            result = true;
                         }
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
-                    return false;
                 }
             } else if (location.contains("sistemas.unesp.br/academico")) {//if location is academico page, academico session timed out
                 //TODO: support academico redirection
-                return false;
             } else {
                 System.out.println("unrecognized redirection: "+ location);
-                return false;
             }
-        } else {
-            return false;
         }
+        return result;
     }
     /**
      * Synchronization is reaaaally important here. Every method of SisgradCrawler will
