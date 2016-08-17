@@ -44,6 +44,7 @@ public class MainSisgrad {
             SisgradCrawler sisgradCrawler = new SisgradCrawler(username, password);
             SisgradCrawler.DoOrResumeLoginResponseObject loginObject = sisgradCrawler.doOrResumeLogin();//logs in
             System.out.println("logged, now wait");
+            //Thread.sleep(60*11*1000);
             //SisgradCrawler.DoOrResumeLoginResponseObject testObject = sisgradCrawler.doOrResumeLogin();//logs in
             if (loginObject.pageError != null) {
                 System.out.println("something wrong with login information:");
@@ -59,8 +60,8 @@ public class MainSisgrad {
             } else {
                 System.out.println("logged in, location Redirect is: " + loginObject.loginObject.locationRedirect);
                 System.out.println("now gonna push content from server...");
-                System.out.println("let's wait 11 minutes first...");
-                Thread.sleep(60*32*1000);
+                //System.out.println("let's wait 32 minutes first...");
+                //Thread.sleep(60*32*1000);
                 SisgradCrawler.GetMessagesResponse messages = sisgradCrawler.getMessages(0);//page 0
                 System.out.println("first message, metadata: " + messages.messages.get(0));
                 String mId = sisgradCrawler.getMessages(0).messages.get(0).get("messageId");
@@ -74,12 +75,15 @@ public class MainSisgrad {
                 } else {
                     //if we got redirected to https://sistemas.unesp.br/academico/common.home.action, then, according to my late tests,
                     //the academico access went fine.
-                    if (academicoAccess.locationRedirect != null && academicoAccess.locationRedirect.contains("sistemas.unesp.br/academico/common.home.action")) {
-                        System.out.println("academico access probably successful");
+                    if (true) {
+                    //if (academicoAccess.locationRedirect != null && academicoAccess.locationRedirect.contains("sistemas.unesp.br/academico/common.home.action")) {
+                        System.out.println("academico access successful");
                     } else {
                         System.out.println("something went wrong. HTTP error: " + academicoAccess.pageError.errorCode + " error message: " + academicoAccess.pageError.errorMessage);
                     }
                 }
+                System.out.println("now gonna wait 11 minutes...");
+                Thread.sleep(60*11*1000);
                 System.out.println("getting classes...");
                 SisgradCrawler.GetClassesResponse classesResponse = sisgradCrawler.getClasses();
                 System.out.println("first class at 'Segunda'");

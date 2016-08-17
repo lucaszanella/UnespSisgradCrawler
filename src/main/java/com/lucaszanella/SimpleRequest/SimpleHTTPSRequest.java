@@ -141,4 +141,16 @@ public class SimpleHTTPSRequest {
         }
         return new requestObject(response, responseCode, responseMessage, location, responseCookies);
     }
+
+    public Boolean resolvingRedirection(SimpleHTTPSRequest request, URL url, String postQuery) throws Exception {
+        requestObject page = request.SimpleHTTPSRequest(url, postQuery);
+        if (page.responseCode.equals("200")) {
+
+        } else if (page.responseCode.equals("302")) {
+
+        } else {
+
+        }
+        return null;
+    }
 }

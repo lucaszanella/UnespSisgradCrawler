@@ -1,7 +1,9 @@
 package com.lucaszanella.SisgradCrawler;
 
-import com.lucaszanella.SimpleRequest.SimpleHTTPSRequest;
+import com.lucaszanella.UserAgentInterceptor;
 import com.lucaszanella.jSoupTable;
+import okhttp3.*;
+import okhttp3.logging.HttpLoggingInterceptor;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -9,7 +11,6 @@ import org.jsoup.select.Elements;
 
 import java.io.IOException;
 import java.net.URL;
-import java.net.URLEncoder;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -33,7 +34,7 @@ public class SisgradCrawler {
     private String magicalNumber;
     private Boolean alreadyLoadedMagicalNumber = false;
 
-    private SimpleHTTPSRequest sisgradRequest = new SimpleHTTPSRequest();
+    //private SimpleHTTPSRequest sisgradRequest = new SimpleHTTPSRequest();
 
     public long lastAcademicoSuccess = 0;//0 as its initial value, then the first access will assign the current unix date to it
     public long lastLoginSuccess = 0;//same as above
@@ -43,6 +44,7 @@ public class SisgradCrawler {
     public static int ACADEMICO_TIMEOUT = LOGIN_TIMEOUT;//time to decide that the academico session is still open
 
     public static int MAX_RECURSIVITY = 3;//number of times a function can call itself to resolve session timeout
+    public static String userAgent = "Mozilla/5.0 (X11; Linux x86_64; rv:48.0) Gecko/20100101 Firefox/48.0";
 
     //Result codes
     public static final int OK = 0;
@@ -54,6 +56,42 @@ public class SisgradCrawler {
     public static final int GENERIC_ERROR = 6;
     public static final int NOT_CONNECTED = 7;
     public static final int RESUMED = 8;
+
+    private class PAGES {
+        public static final int LOGIN_REDIRECTOR = 0;
+        public static final int LOGIN_FORM = 1;
+        public static final int LOGIN_WELCOME = 2;
+        public static final int ACADEMICO_WELCOME = 3;
+        public static final int GET_MESSAGES = 4;
+        public static final int GET_MESSAGE = 5;
+        public static final int GET_CLASSES = 6;
+    }
+
+    //TODO: move this cookie jar to its own folder
+    CookieJar cookieJar = new CookieJar() {
+        private final HashMap<String, List<Cookie>> cookieStore = new HashMap<>();
+
+        @Override
+        public void saveFromResponse(HttpUrl url, List<Cookie> cookies) {
+            //System.out.println("added new cookies: "+cookies);
+            cookieStore.put(url.host(), cookies);
+            //System.out.println("list of all cookies: "+cookieStore);
+        }
+
+        @Override
+        public List<Cookie> loadForRequest(HttpUrl url) {
+            List<Cookie> cookies = cookieStore.get(url.host());
+            System.out.println();
+            return cookies != null ? cookies : new ArrayList<Cookie>();
+        }
+    };
+    HttpLoggingInterceptor logging = new HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.HEADERS);
+
+    private OkHttpClient sisgradRequest = new OkHttpClient.Builder()
+            .cookieJar(cookieJar)
+            .addNetworkInterceptor(new UserAgentInterceptor(userAgent))
+            .addNetworkInterceptor(logging)
+            .build();
 
     /**
      * Sisgrad initialization stores the username and password. Later, we just call loginToSentinela().
@@ -67,11 +105,16 @@ public class SisgradCrawler {
      * Page error used by all the response objects returned by any of the methods below
      */
     public class PageError {
-        public String errorCode;
+        public int errorCode;
         public String errorMessage;
-        public PageError(String errorCode, String errorMessage) {
+        public PageError(int errorCode, String errorMessage) {
             this.errorCode = errorCode;
             this.errorMessage = errorMessage;
+        }
+
+        public PageError(Response response) {
+            this.errorCode = response.code();
+            this.errorMessage = response.message();
         }
     }
 
@@ -83,8 +126,7 @@ public class SisgradCrawler {
         public LoginError loginError;
         public PageError pageError;
 
-        public SentinelaLoginObject(PageError pageError, String locationRedirect, LoginError loginError) {
-            this.locationRedirect = locationRedirect;
+        public SentinelaLoginObject(PageError pageError, LoginError loginError) {
             this.loginError = loginError;
             this.pageError = pageError;
         }
@@ -98,58 +140,113 @@ public class SisgradCrawler {
             }
         }
     }
+
+    public int detectPage(Response response) {
+        List<String> pathSegments = response.request().url().pathSegments();
+        if (pathSegments.contains("sentinela.E2RFRR2R2R2R.action")) {
+            return PAGES.LOGIN_FORM;
+        }
+        if (pathSegments.contains("sentinela.showDesktop.action")) {
+            return PAGES.LOGIN_WELCOME;
+        } else
+        if (pathSegments.contains("common.home.action")) {
+            return PAGES.ACADEMICO_WELCOME;
+        } else
+        if (pathSegments.contains("sentinela.openMessage.action")) {
+            return PAGES.GET_MESSAGES;
+        } else
+        if (pathSegments.contains("sentinela.viewMessage.action")) {
+            return PAGES.GET_MESSAGE;
+        } else
+        if (pathSegments.contains("cadastro.horarioAulas.action")) {
+            return PAGES.GET_CLASSES;
+        }
+        return -1;
+    }
+
     //Logs to the 'sentinela' module inside Sisgrad's system. It's responsible to load messages.
     public SentinelaLoginObject loginToSentinela() throws Exception {
-        //Mounts POST query that's gonna be sent to the login page
-        String postQuery = "txt_usuario=" + URLEncoder.encode(this.username, "UTF-8") + "&" + "txt_senha=" + URLEncoder.encode(this.password, "UTF-8");
         if (debugMode) {
             System.out.println("logging in to sentinela");
         }
-        URL sentinelaLogin = new URL(protocol + "://" + domain + "/" + "sentinela" + "/" + "login.action");
-        SimpleHTTPSRequest.requestObject loginRequest = sisgradRequest.SimpleHTTPSRequest(sentinelaLogin, postQuery); //calls the login url, POSTing the query with user and password
-
-        String locationRedirect = loginRequest.location;
-        String responseCode = loginRequest.responseCode;
-        String response = loginRequest.response;
-        String responseMessage = loginRequest.responseMessage;
+        //Request to /sentinela/ just to fake human interaction with the server
+        Request fakeUserNavigation = new Request.Builder().
+                url(protocol + "://" + domain + "/" + "sentinela" + "/").
+                build();
+        //TODO: analyze content of this page, just in case something strange happens
+        Response a  = sisgradRequest.newCall(fakeUserNavigation).execute();//we don't care about the result of this query
+        //System.out.println("A = "+a.body().string());
+        System.out.println("A = "+a.request());
+        //The page /sentinela/ has a <meta> tag that performs redirection, which won't occur automatically because it's
+        //not a HTTP location command. So we must fake that we loaded it, and redirected.
+        Request fakeUserRedirection = new Request.Builder().
+                url(protocol + "://" + domain + "/" + "sentinela" + "/" + "login.open.action").
+                build();
+        //TODO: analyze content of this page, just in case something strange happens
+        Response b = sisgradRequest.newCall(fakeUserRedirection).execute();
+        //System.out.println("B = "+b.body().string());
+        System.out.println("B = "+b.request());
+        //System.out.println(a.body().string());
+        //Form of the /sentinela/login.action request
+        //TODO: verify if the POST below is encoded
+        FormBody loginForm = new FormBody.Builder()
+                .addEncoded("txt_usuario", this.username)
+                .addEncoded("txt_senha", this.password)
+                .addEncoded("btn_entrar", "")
+                .build();
+        //System.out.println("tag: "+loginForm);
+        //Post request that will actually perform the login
+        Request loginPostRequest = new Request.Builder().
+                url(protocol + "://" + domain + "/" + "sentinela" + "/" + "login.action").
+                post(loginForm).
+                build();
+        //System.out.println("tag: "+loginPostRequest.body());
+        Response loginResponse = sisgradRequest.newCall(loginPostRequest).execute();
+        //System.out.println("C = "+loginResponse.body().string());
+        System.out.println("C = "+loginResponse.request());
+        int responseCode = loginResponse.code();
+        String responseMessage = loginResponse.message();
+        String response = loginResponse.body().string();
         Boolean wrongPassword = false;
         Boolean wrongEmail = false;
-        /*if there's no location http command, then the login didn't succeed and we're back at the same page
-         *this is a signal that the information was wrong
-         */
-        if (locationRedirect==null || (locationRedirect.equals("") || locationRedirect.length()==0)) {
+        Boolean unknownError = false;
+
+        if (loginResponse.isSuccessful()) {
             //if the login didn't succeed, it could be wrong password or any other thing, so let's detect it!
+            //System.out.println(response);
             Element doc = Jsoup.parse(response);
-            Elements errors = doc.getElementsByClass("errormsg");
-            String errorMsg = errors.first().text().toLowerCase();
+            //System.out.println(doc);
 
-            if (errorMsg.contains("senha")) {wrongPassword = true;}
-            if (errorMsg.contains("email") || errorMsg.contains("e-mail")) {wrongEmail = true;}
+            if (detectPage(loginResponse)==PAGES.LOGIN_WELCOME) {
+                return new SentinelaLoginObject(null, null);
+            } else if (detectPage(loginResponse)==PAGES.LOGIN_FORM) {
+                Elements errors = doc.getElementsByClass("errormsg");
+                String errorMsg = errors.first().text().toLowerCase();
 
-            SentinelaLoginObject.LoginError loginError =
-                    new SentinelaLoginObject(null, null, null).new LoginError(wrongPassword, wrongEmail);
-            PageError pageError = new PageError(responseCode, responseMessage);
-            return new SentinelaLoginObject(pageError,locationRedirect, loginError);
-        } else if (locationRedirect.contains("sistemas.unesp.br/sentinela/sentinela.showDesktop.action")) {//login done because it redirected to this page
-            return new SentinelaLoginObject(null, locationRedirect, null);
+                if (errorMsg.contains("senha")) {
+                    wrongPassword = true;
+                }
+                if (errorMsg.contains("email") || errorMsg.contains("e-mail")) {
+                    wrongEmail = true;
+                }
+                SentinelaLoginObject.LoginError loginError =
+                        new SentinelaLoginObject(null, null).new LoginError(wrongPassword, wrongEmail);
+                PageError pageError = new PageError(responseCode, responseMessage);
+                return new SentinelaLoginObject(pageError, loginError);
+            } else {
+                return new SentinelaLoginObject(new PageError(responseCode, responseMessage), null);
+            }
+        } else {
+            return new SentinelaLoginObject(new PageError(responseCode, responseMessage), null);
         }
-        //If any http error happened, sent it back
-        if (!responseCode.equals("302")) {
-            PageError pageError =
-                    new PageError(responseCode, responseMessage);
-            return new SentinelaLoginObject(pageError, locationRedirect, null);
-        }
-        return new SentinelaLoginObject(null, locationRedirect, null);
     }
 
     //---Academico Login and its response object
     //Result object to be sent back. 'error' property is null if no errors detected.
     public class AcademicoAccessObject {
-        public String locationRedirect;
         public PageError pageError;
 
-        public AcademicoAccessObject(PageError pageError, String locationRedirect) {
-            this.locationRedirect = locationRedirect;
+        public AcademicoAccessObject(PageError pageError) {
             this.pageError = pageError;
         }
     }
@@ -162,24 +259,31 @@ public class SisgradCrawler {
             System.out.println("logging in to academico");
         }
         //The academico access process, as I tested, requires me to access the page it redirected me to, so we do it below
-        URL academicoLogin = new URL(protocol + "://" + domain + "/" + "sentinela" + "/" + "sentinela.acessarSistema.action?id=3");
-        SimpleHTTPSRequest.requestObject loginRequest = sisgradRequest.SimpleHTTPSRequest(academicoLogin, null); //calls the login url from academico's page
-        URL locationRedirect = new URL(loginRequest.location);//the login process requires HTTP redirection, which is disabled at SimpleHTTPSRequest
-        SimpleHTTPSRequest.requestObject pageafterLogin = sisgradRequest.SimpleHTTPSRequest(locationRedirect, null); //calls the next page just to simulate a computer access
-        if (pageafterLogin.responseCode.equals("200")) {
-            return new AcademicoAccessObject(null, null);
-        } else if (pageafterLogin.location!=null && pageafterLogin.responseCode.equals("302")) {//login probably timed out, server issued redirection to login page
-            if (pageafterLogin.location.contains("sistemas.unesp.br/sentinela/login.open.action")) {//if location is login page...
-                SentinelaLoginObject relogin = loginToSentinela();
-                if (relogin.pageError==null) {//if everything went ok
-                    //TODO: limit the recursive calls or it'll loop forever
-                    accessAcademico();//Calls itself, now that it did login again
+        Request academicoAccessRequest = new Request.Builder().
+                url(protocol + "://" + domain + "/" + "sentinela" + "/" + "sentinela.acessarSistema.action?id=3").
+                build();
+        Response academicoAccessResponse = sisgradRequest.newCall(academicoAccessRequest).execute();
+        if (academicoAccessResponse.isSuccessful()) {
+            if (detectPage(academicoAccessResponse)==PAGES.ACADEMICO_WELCOME) {
+                return new AcademicoAccessObject(null);
+            } else {//login probably timed out, server issued redirection to login page
+                if (detectPage(academicoAccessResponse)==PAGES.LOGIN_REDIRECTOR) {//if location is login page...
+                    SentinelaLoginObject relogin = loginToSentinela();
+                    if (relogin.pageError == null) {//if everything went ok
+                        //TODO: limit the recursive calls or it'll loop forever
+                        return accessAcademico();//Calls itself, now that it did login again
+                    } else {
+                        return new AcademicoAccessObject(new PageError(academicoAccessResponse));
+                    }
+                } else {
+                    return new AcademicoAccessObject(new PageError(academicoAccessResponse));
                 }
             }
+        } else {
+            return new AcademicoAccessObject(new PageError(academicoAccessResponse));
         }
-        PageError pageError = new PageError(pageafterLogin.responseCode, pageafterLogin.responseMessage);
-        return new AcademicoAccessObject(pageError, pageafterLogin.location);
     }
+
 
     /**
      * Whenever a method calls the Sisgrad's server, it can be surprised by some page redirections that are not
@@ -191,31 +295,113 @@ public class SisgradCrawler {
      * when it reaches -1, the function stops calling itself, to prevent infinite recursion, in case the system
      * is unable to fix itself.
      */
-    public Boolean fixedRedirection(Integer recursivity, String location, String responseCode) {
-        Boolean result = false;
-        if (location!=null && responseCode.equals("302")) {//session probably timed out, server issued redirection to login page
-            if (location.contains("sistemas.unesp.br/sentinela")) {//if location is login page, it means login timed out
-                try {
-                    SentinelaLoginObject reLogin = loginToSentinela();
-                    if (reLogin.pageError==null) {
-                        System.out.println("redirection to "+location+", should call itself recursively now");
-                        if (recursivity>=0){
-                            result = true;
+    /*
+    public Boolean fixedRedirection(Integer recursivity, String location, String responseCode) throws Exception{
+        Boolean result = false;//default value to return
+        if (recursivity>0 && location != null) {
+            if (responseCode.equals("302")) {//session probably timed out, server issued redirection to login page
+                if (location.contains("sistemas.unesp.br/sentinela/login.open.action")) {//sometimes the server redirects to this
+                    System.out.println("redirected to "+"sistemas.unesp.br/sentinela/login.open.action");
+                    URL sentinelaLogin = new URL(protocol + "://" + "sistemas.unesp.br/sentinela/login.open.action");
+                    SimpleHTTPSRequest.requestObject openLoginAgain = sisgradRequest.SimpleHTTPSRequest(sentinelaLogin, null); //calls the login url, POSTing the query with user and password
+                    if (openLoginAgain.responseCode.equals("300") && openLoginAgain.location.contains("sistemas.unesp.br/sentinela/sentinela.showDesktop.action")) {
+                        System.out.println("redirected to "+openLoginAgain.location);
+                        SimpleHTTPSRequest.requestObject openLoginAgainRedirected = sisgradRequest.SimpleHTTPSRequest(new URL(openLoginAgain.location), null);
+                        if (openLoginAgainRedirected.responseCode.equals("200")) {
+                            System.out.println("redirected to "+openLoginAgainRedirected.location);
+                            return true;
                         }
                     }
-                } catch (Exception e) {
-                    e.printStackTrace();
+                } else if (location.contains("sistemas.unesp.br/sentinela")) {//if location is login page, it means login timed out
+                    System.out.println("got redirected to "+location+", opening it (or not)");
+                    SimpleHTTPSRequest.requestObject openLoginAgain = sisgradRequest.SimpleHTTPSRequest(new URL(protocol+ "://" +"sistemas.unesp.br/sentinela/"), null);
+                    *
+                     * There are two behaviors I observed with redirects to sistemas.unesp.br/sentinela: either it was a redirection
+                     * because the login session timed out, in this case the HTTP status is 200 because the user is prompted with this
+                     * page to insert login credentials again, or the system redirects to this URL to perform some checks. I think that,
+                     * since the /academico/ pages shows a max session time (yes, the page has a counter) of 10 minutes, which is less
+                     * than the session time of /sentinela, which is 30, if the /academico/ session timed out, but not /sentinela/
+                     * (remember that in order to enter /academico/ we must log in to sentinela, /academico/ is not a login process
+                     * but it has its own session) then the server redirects to sistemas.unesp.br/sentinela, but not to ask for credentials
+                     * again, but to see if the user is still logged in /sentinela/ and then it redirects him to another page, which sould
+                     * be the page that opens a session to /academico/.
+                     *
+                    if (openLoginAgain.responseCode.equals("200")) {
+                        *
+                         * Sometimes the system redirects us to this page with HTTP 200, but with a <meta> refresh tag and time 0,
+                         * which means that it's equivalent to a HTTP location command. So we're gonna inspect if that's the case
+                         * and redirect to it. Here's the tag:
+                         * <meta http-equiv='Refresh' content='0;URL=/sentinela/login.open.action' />
+                         * it means we must redirect to /sentinela/login.open.action in 0 seconds.
+                         *
+                        Element doc = Jsoup.parse(openLoginAgain.response);
+                        Elements metas = doc.getElementsByTag("meta");
+                        Boolean hasMeta = false;
+                        for (Element meta: metas) {
+                            //If there's a meta tag in which content contains the text /sentinela/login.open.action
+                            if (meta.attr("content").contains("/sentinela/login.open.action")) {
+                                System.out.println("meta tag detected, reopening /login.open.action...");
+                                openLoginAgain = sisgradRequest.SimpleHTTPSRequest(new URL(protocol+ "://" +"sistemas.unesp.br/sentinela/login.open.action"), null);
+                                if (openLoginAgain.responseCode.equals("200")) {
+                                    System.out.println("true, reopened");
+                                    hasMeta = true;
+                                    result = true;
+                                } else if (openLoginAgain.responseCode.equals("302") && openLoginAgain.location!=null) {
+                                    openLoginAgain = sisgradRequest.SimpleHTTPSRequest(new URL(openLoginAgain.location), null);
+                                } else {
+                                    System.out.println("couldn't open, http code: "+openLoginAgain.responseCode+" message: "+openLoginAgain.responseMessage+" location: "+openLoginAgain.location);
+                                }
+                            }
+                        }
+                        if (!hasMeta) {
+                            //No meta tag means we're in this page to stay, that is, reinsert login credentials by hand
+                            System.out.println("redoing login");
+                            SentinelaLoginObject reLogin = loginToSentinela();
+                            if (reLogin.pageError == null) {
+                                System.out.println("relogged to the system");
+                                result = true;
+                            } else {
+                                //Unexpected behavior, but let's return true in hope the session was opened
+                                System.out.println("unexpected behavior while trying to relog, but returnin true anyways");
+                                result = true;
+                            }
+                        }
+                    } else if (openLoginAgain.responseCode.equals("302") && openLoginAgain.location!=null){
+                        System.out.println("got 302 redirection");
+                        //Based on what was explained above, here we open the page that we were redirected to, in order to reopen /academico session
+                        SimpleHTTPSRequest.requestObject openAcademicoSession = sisgradRequest.SimpleHTTPSRequest(new URL(openLoginAgain.location), null);
+                        if (openAcademicoSession.responseCode.equals("200")) {
+                            System.out.println("reopened /academico/ session and loaded "+openLoginAgain.location);
+                            result = true;
+                        } else {
+                            //Unexpected behavior, but let's return true in hope the session was opened
+                            result = true;
+                            System.out.println("unexpected behavior while trying to reopen /academico/, but returnin true anyways");
+                        }
+                    }
+                    /
+                    try {
+                        SentinelaLoginObject reLogin = loginToSentinela();
+                        if (reLogin.pageError == null) {
+                            System.out.println("redirection to " + location + ", should call itself recursively now");
+                                result = true;
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                    *
+                } else if (location.contains("sistemas.unesp.br/academico")) {//if location is academico page, academico session timed out
+                    //TODO: support academico redirection
+                } else {
+                    System.out.println("unrecognized redirection: " + location);
                 }
-            } else if (location.contains("sistemas.unesp.br/academico")) {//if location is academico page, academico session timed out
-                //TODO: support academico redirection
-            } else {
-                System.out.println("unrecognized redirection: "+ location);
             }
         }
         return result;
     }
+    */
     /**
-     * Synchronization is reaaaally important here. Every method of SisgradCrawler will
+     * Synchronization is reaaaally important here. Some methods of the Android app will
      * call this to know if they must reLogin (because it times out after like, 10 minutes), or if
      * they can just proceed with the access of the Sisgrad elements. Every method has a built in
      * functionality that tries to reLogin if they get redirected to the login page when trying to
@@ -323,6 +509,7 @@ public class SisgradCrawler {
     }
     //Gets the messages from the system.
     private GetMessagesResponse getMessagesWrapped(int page, int recursivity) throws Exception {
+        System.out.println("getMessages() called with recursivity: "+recursivity);
         /*
             Getting messages for pages above 0 is tricky, the link has some number that I couldn't figure out
             the pattern for its existence, so I just extract it from the '2, 3, 4, ...' buttons in the page,
@@ -331,87 +518,93 @@ public class SisgradCrawler {
             because it would be hard to understand what's happening. Basically it extracts the number if it hadn't been
             extracted before, mounts the link, then loads the messages from this link.
         */
-        SimpleHTTPSRequest.requestObject pageToReadMessages;
+        //SimpleHTTPSRequest.requestObject pageToReadMessages;
+        Request getMessagesRequest = new Request.Builder().
+                url(mountMessagePage(page, this.magicalNumber)).
+                build();
+        //TODO: analyze content of this page, just in case something strange happens
+        Response getMessagesResponse;
         if (page == 0) {
             if (debugMode) {
                 System.out.println("getting page 0");
             }
-            pageToReadMessages = sisgradRequest.SimpleHTTPSRequest(mountMessagePage(0, ""), null);
-            this.magicalNumber = getMagicalNumber(pageToReadMessages);
+            getMessagesResponse = sisgradRequest.newCall(getMessagesRequest).execute();
+            this.magicalNumber = getMagicalNumber(getMessagesResponse.body().string());
             this.alreadyLoadedMagicalNumber = true;
         } else if (this.alreadyLoadedMagicalNumber) {
             if (debugMode) {
                 System.out.println("already loaded page magicalNumber before, now getting page " + page);
             }
-            pageToReadMessages = sisgradRequest.SimpleHTTPSRequest(mountMessagePage(page, this.magicalNumber), null);
+            getMessagesResponse = sisgradRequest.newCall(getMessagesRequest).execute();
         } else {
             if (debugMode) {
                 System.out.println("didn't load magicalNumber before, gonna get the first page to get magicalNumber and then load the page " + page);
             }
-            SimpleHTTPSRequest.requestObject magicalNumberRequest = sisgradRequest.SimpleHTTPSRequest(mountMessagePage(0, ""), null); //Yes, I really need to load this page first just to get the magicalNumber that ables me to get the other pages
+            //SimpleHTTPSRequest.requestObject magicalNumberRequest = sisgradRequest.SimpleHTTPSRequest(mountMessagePage(0, ""), null); //Yes, I really need to load this page first just to get the magicalNumber that ables me to get the other pages
+            //Query the page 0 to get the maginal number
+            Response magicalNumberRequest = sisgradRequest.newCall(
+                    new Request.Builder().
+                            url(mountMessagePage(0, "")).
+                            build()
+            ).execute();
+
             if (debugMode) {
-                System.out.println("Setting up magical number: " + getMagicalNumber(magicalNumberRequest));
+                System.out.println("Setting up magical number: " + getMagicalNumber(magicalNumberRequest.body().string()));
             }
-            this.magicalNumber = getMagicalNumber(magicalNumberRequest);
+            this.magicalNumber = getMagicalNumber(magicalNumberRequest.body().string());
 
             if (debugMode) {
                 System.out.println("already loaded magicalNumber, now gonna get new page: " + page);
             }
-            pageToReadMessages = sisgradRequest.SimpleHTTPSRequest(mountMessagePage(page, this.magicalNumber), null);
+            getMessagesResponse = sisgradRequest.newCall(getMessagesRequest).execute();
             this.alreadyLoadedMagicalNumber = true;
         }
-        String locationRedirect = pageToReadMessages.location;
-        String responseCode = pageToReadMessages.responseCode;
-        String response = pageToReadMessages.response;
-        String responseMessage = pageToReadMessages.responseMessage;
-        //If the HTTP code is 200, there was no login timeout, else if it's 302, there was and we must deal with it.
-        if (responseCode.equals("200")) {//HTTP OK with no redirection
-            Document doc = Jsoup.parse(response);
-            Element table = doc.getElementById("destinatario");
-            jSoupTable messagesTable = new jSoupTable(table);
-            int tableSize = messagesTable.getAllRows().size();
-            List < Map < String, String >> messagesList = new ArrayList <> ();
-            for (int i = 0; i<tableSize; i++) {//Start at 1 because 0 is a header tag
-                Map < String, String > messageRow = new HashMap <> ();
-                if (messagesTable.isRow(i)) {
-                    String title = messagesTable.getRowTags(i).get(messagesTable.getColumnIndex("assunto", 0)).text();
-                    String author = messagesTable.getRowTags(i).get(messagesTable.getColumnIndex("enviado por", 0)).text();
-                    //TODO: deal with nullPointerException when the page doesn't appear as intended
-                    String messageIdString = messagesTable.getRowTags(i).
-                            get(messagesTable.getColumnIndex("assunto", 0)).
-                            getElementsByTag("a").first().attr("href");
-                    String sentDate = messagesTable.getRowTags(i).get(messagesTable.getColumnIndex("enviado em", 0)).text();
-                    String readDate = messagesTable.getRowTags(i).get(messagesTable.getColumnIndex("lido em", 0)).text();
-                    String messageId = messageIdString.split("\\(")[1].split("\\)")[0];
+        String response = getMessagesResponse.body().string();
 
-                    messageRow.put("title", title);
-                    messageRow.put("author", author);
-                    messageRow.put("messageId", messageId.replace("'", ""));
-                    messageRow.put("sentDate", sentDate);
-                    messageRow.put("readDate", readDate);
+        if (getMessagesResponse.isSuccessful()) {//successfully loaded some page
+            if (detectPage(getMessagesResponse)==PAGES.GET_MESSAGES) {//verify if we didn't get redirected
+                Document doc = Jsoup.parse(response);
+                Element table = doc.getElementById("destinatario");
+                jSoupTable messagesTable = new jSoupTable(table);
+                int tableSize = messagesTable.getAllRows().size();
+                List<Map<String, String>> messagesList = new ArrayList<>();
+                for (int i = 0; i < tableSize; i++) {//Start at 1 because 0 is a header tag
+                    Map<String, String> messageRow = new HashMap<>();
+                    if (messagesTable.isRow(i)) {
+                        String title = messagesTable.getRowTags(i).get(messagesTable.getColumnIndex("assunto", 0)).text();
+                        String author = messagesTable.getRowTags(i).get(messagesTable.getColumnIndex("enviado por", 0)).text();
+                        //TODO: deal with nullPointerException when the page doesn't appear as intended
+                        String messageIdString = messagesTable.getRowTags(i).
+                                get(messagesTable.getColumnIndex("assunto", 0)).
+                                getElementsByTag("a").first().attr("href");
+                        String sentDate = messagesTable.getRowTags(i).get(messagesTable.getColumnIndex("enviado em", 0)).text();
+                        String readDate = messagesTable.getRowTags(i).get(messagesTable.getColumnIndex("lido em", 0)).text();
+                        String messageId = messageIdString.split("\\(")[1].split("\\)")[0];
 
-                    String dateString = sentDate.split("\\.")[0];
-                    DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
-                    Date date = dateFormat.parse(dateString);
-                    long unixTime = (long) date.getTime() / 1000;
-                    messageRow.put("sentDateUnix", String.valueOf(unixTime));
-                    messagesList.add(messageRow);
-                } else {
-                    //System.out.println(messagesTable.getRowTags(i).get(2).getTag());
+                        messageRow.put("title", title);
+                        messageRow.put("author", author);
+                        messageRow.put("messageId", messageId.replace("'", ""));
+                        messageRow.put("sentDate", sentDate);
+                        messageRow.put("readDate", readDate);
+
+                        String dateString = sentDate.split("\\.")[0];
+                        DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
+                        Date date = dateFormat.parse(dateString);
+                        long unixTime = (long) date.getTime() / 1000;
+                        messageRow.put("sentDateUnix", String.valueOf(unixTime));
+                        messagesList.add(messageRow);
+                    } else {
+                        //System.out.println(messagesTable.getRowTags(i).get(2).getTag());
+                    }
                 }
+                return new GetMessagesResponse(null, messagesList);
+            } else {
+                System.out.println("page getMessage not reached");
+                return new GetMessagesResponse(new PageError(getMessagesResponse), null);
             }
-            return new GetMessagesResponse(null, messagesList);
 
-        } else if (fixedRedirection(recursivity, locationRedirect, responseCode)) {
-            /* If fixedRedirection() returned true, it means it successfully fixed the redirection, which was
-             * probably caused by a session timeout, so in order to not interrupt the method call, we return
-             * the result of the new getMessagesWrapped, which will PROBABLY not suffer from another redirection,
-             * but in case it happens indefinitely, recursivity will decrease until fixedRedirection will return false
-             * and everything will stop.
-             */
-            return getMessagesWrapped(page, (recursivity-1));
         } else {
-            return new GetMessagesResponse(new PageError(responseCode, responseMessage), null);
+            return new GetMessagesResponse(new PageError(getMessagesResponse), null);
         }
     }
     //---GetMessage and its response object
@@ -434,63 +627,69 @@ public class SisgradCrawler {
     }
     public GetMessageResponse getMessageWrapped (String messageId, Boolean html, Integer recursivity) throws Exception {//this method is a mess. TODO: make it better
         //System.out.println("hi, i'm getting message for id "+ messageId );
-        URL getMessagesURL = new URL(protocol + "://" + domain + "/" + "sentinela" + "/" + "sentinela.viewMessage.action?txt_id="+messageId+"&emailTipo=recebidas");
-        if (debugMode) {System.out.println(" the url is "+ getMessagesURL.toString());}
-        SimpleHTTPSRequest.requestObject messageRequest = sisgradRequest.SimpleHTTPSRequest(getMessagesURL, null);
-        String locationRedirect = messageRequest.location;
-        String responseCode = messageRequest.responseCode;
-        String response = messageRequest.response;
-        String responseMessage = messageRequest.responseMessage;
-        if (responseCode.equals("200")) {//HTTP OK with no redirection
-            Document doc = Jsoup.parse(response);
-            Element messageForm = doc.select("form").get(0);//gets the first form. TODO: change this to get the largest form or something like that
-            Element messageTable = messageForm.select("table").get(0);
-            jSoupTable table = new jSoupTable(messageTable);
-            //Since this is not a table with header, we can't get columns indexes, so we'll need to iterate through each row,
-            //then in each row, we're gonna search the column values that match our needs.
-            String from = null;
-            String title = null;
-            String attachments = null;
-            String message = null;
-            Map<String, String> attachmentsList = new HashMap<>();
+        //URL getMessagesURL = new URL(protocol + "://" + domain + "/" + "sentinela" + "/" + "sentinela.viewMessage.action?txt_id="+messageId+"&emailTipo=recebidas");
+        //if (debugMode) {System.out.println(" the url is "+ getMessagesURL.toString());}
+        //SimpleHTTPSRequest.requestObject messageRequest = sisgradRequest.SimpleHTTPSRequest(getMessagesURL, null);
+        Request getMessagesRequest = new Request.Builder().
+                url(protocol + "://" + domain + "/" + "sentinela" + "/" + "sentinela.viewMessage.action?txt_id="+messageId+"&emailTipo=recebidas").
+                build();
 
-            for (int k = 0; k<table.getAllRows().size(); k++) {
-                List<Element> tags = table.getAllRows().get(k);
-                //for (List<jSoupTable.Tag> tags: table.getAllRows()) {
-                for (int i=0; i<tags.size(); i++) {
-                    //Identify the sender of the message
-                    if (tags.get(0).text().toLowerCase().contains("de") && tags.size()==2) {
-                        from = tags.get(1).text();
-                    }
-                    //Identify the subject or title of the message
-                    if (tags.get(0).text().toLowerCase().contains("assunto") && tags.size()==2) {
-                        title = tags.get(1).text();
-                    }
-                    //Identify the attachments of the message
-                    if (tags.get(0).text().toLowerCase().contains("anexo") && tags.size()==2) {
-                        Elements linksOfAttachments  = tags.get(1).select("a");
-                        //containsAttachments = true;
-                        for (Element linkOfAttachment:linksOfAttachments) {
-                            //System.out.println("linkOfAttachment: "+linkOfAttachment.html()+"attr: "+linkOfAttachment.attr("href"));
-                            attachmentsList.put(linkOfAttachment.text(),linkOfAttachment.attr("href"));
+        Response getMessageResponse = sisgradRequest.newCall(getMessagesRequest).execute();
+        int responseCode = getMessageResponse.code();
+        String responseMessage = getMessageResponse.message();
+        String response = getMessageResponse.body().string();
+
+        if (getMessageResponse.isSuccessful()) {//Some HTTP page was loaded
+            if (detectPage(getMessageResponse)==PAGES.GET_MESSAGE) {
+                Document doc = Jsoup.parse(response);
+                Element messageForm = doc.select("form").get(0);//gets the first form. TODO: change this to get the largest form or something like that
+                Element messageTable = messageForm.select("table").get(0);
+                jSoupTable table = new jSoupTable(messageTable);
+                //Since this is not a table with header, we can't get columns indexes, so we'll need to iterate through each row,
+                //then in each row, we're gonna search the column values that match our needs.
+                String from = null;
+                String title = null;
+                String attachments = null;
+                String message = null;
+                Map<String, String> attachmentsList = new HashMap<>();
+
+                for (int k = 0; k<table.getAllRows().size(); k++) {
+                    List<Element> tags = table.getAllRows().get(k);
+                    //for (List<jSoupTable.Tag> tags: table.getAllRows()) {
+                    for (int i=0; i<tags.size(); i++) {
+                        //Identify the sender of the message
+                        if (tags.get(0).text().toLowerCase().contains("de") && tags.size()==2) {
+                            from = tags.get(1).text();
                         }
+                        //Identify the subject or title of the message
+                        if (tags.get(0).text().toLowerCase().contains("assunto") && tags.size()==2) {
+                            title = tags.get(1).text();
+                        }
+                        //Identify the attachments of the message
+                        if (tags.get(0).text().toLowerCase().contains("anexo") && tags.size()==2) {
+                            Elements linksOfAttachments  = tags.get(1).select("a");
+                            //containsAttachments = true;
+                            for (Element linkOfAttachment:linksOfAttachments) {
+                                //System.out.println("linkOfAttachment: "+linkOfAttachment.html()+"attr: "+linkOfAttachment.attr("href"));
+                                attachmentsList.put(linkOfAttachment.text(),linkOfAttachment.attr("href"));
+                            }
 
-                    }
-                    /**
-                     * This is the most important part, the message content. Several techniques were
-                     * used to identify the message, but attention, web crawling is never perfect :(.
-                     * The only unique characteristics of the messages row was having bgcolor=white or
-                     * having a lots of <br> (in case of multiline messages). In both cases, the column size
-                     * was 1.
-                     */
-                    if      (
-                            (!tags.get(0).select("td").isEmpty()
-                                    && tags.get(0).select("td").attr("bgcolor").equals("white")
-                                    && tags.size()==1)
-                                    ||
-                                    (tags.get(0).getElementsByTag("br").size()>2 && tags.size()==1)
-                            )
-                    {
+                        }
+                        /**
+                         * This is the most important part, the message content. Several techniques were
+                         * used to identify the message, but attention, web crawling is never perfect :(.
+                         * The only unique characteristics of the messages row was having bgcolor=white or
+                         * having a lots of <br> (in case of multiline messages). In both cases, the column size
+                         * was 1.
+                         */
+                        if      (
+                                (!tags.get(0).select("td").isEmpty()
+                                        && tags.get(0).select("td").attr("bgcolor").equals("white")
+                                        && tags.size()==1)
+                                        ||
+                                        (tags.get(0).getElementsByTag("br").size()>2 && tags.size()==1)
+                                )
+                        {
                         /*
                         System.out.println("SELECTION: ");
                         System.out.println("first: "+(!tags.get(0).getTag().select("td").isEmpty()
@@ -506,23 +705,20 @@ public class SisgradCrawler {
                          * PS: I could have used jSoup in the Android app to extract the text, but I wanted to use here since
                          * it's already loaded in memory.
                          */
-                        if (html) {
-                            message = tags.get(0).html();
-                        } else {
-                            message = tags.get(0).text();
+                            if (html) {
+                                message = tags.get(0).html();
+                            } else {
+                                message = tags.get(0).text();
+                            }
                         }
                     }
                 }
+                return new GetMessageResponse(null, from, title, message, attachmentsList);
+            } else {
+                System.out.println("couldn't find getMessage page");
+                //TODO: add constructor for GetMessageResponse and other responses, which eliminates the need for the nulls
+                return new GetMessageResponse(new PageError(responseCode, responseMessage), null, null, null, null);
             }
-            return new GetMessageResponse(null, from, title, message, attachmentsList);
-        } else if (fixedRedirection(recursivity, locationRedirect, responseCode)) {
-            /* If fixedRedirection() returned true, it means it successfully fixed the redirection, which was
-             * probably caused by a session timeout, so in order to not interrupt the method call, we return
-             * the result of the new getMessagesWrapped, which will PROBABLY not suffer from another redirection,
-             * but in case it happens indefinitely, recursivity will decrease until fixedRedirection will return false
-             * and everything will stop.
-             */
-            return getMessageWrapped(messageId, html, (recursivity-1));
         } else {
             return new GetMessageResponse(new PageError(responseCode, responseMessage), null, null, null, null);
         }
@@ -554,75 +750,80 @@ public class SisgradCrawler {
     }
     //Gets all the 'classes' (by classes I mean, the classes the student must go)
     private GetClassesResponse getClassesWrapped(int recursivity) throws Exception {
-        URL getClassesURL = new URL(protocol + "://" + domain + "/" + "academico" + "/aluno/cadastro.horarioAulas.action");
-        SimpleHTTPSRequest.requestObject classesRequest = sisgradRequest.SimpleHTTPSRequest(getClassesURL, null);
+        //URL getClassesURL = new URL(protocol+"://"+"sistemas.unesp.br/academico/selecionar.aluno.action?url=HORARIO_AULAS");
+        //SimpleHTTPSRequest.requestObject classesRequest = sisgradRequest.SimpleHTTPSRequest(getClassesURL, null);
+        Request getClassesRequest = new Request.Builder().
+                url(protocol + "://" + "sistemas.unesp.br/academico/selecionar.aluno.action?url=HORARIO_AULAS").
+                build();
 
-        SimpleHTTPSRequest.requestObject classesRequestRedirected = sisgradRequest.SimpleHTTPSRequest(new URL(classesRequest.location), null);
-        SimpleHTTPSRequest.requestObject classesRequestRedirectedAgain = sisgradRequest.SimpleHTTPSRequest(new URL(classesRequestRedirected.location), null);
-        String locationRedirect = classesRequestRedirectedAgain.location;
-        String responseCode = classesRequestRedirectedAgain.responseCode;
-        String response = classesRequestRedirectedAgain.response;
-        String responseMessage = classesRequestRedirectedAgain.responseMessage;
-        if (responseCode.equals("200")) {
-            Document doc = Jsoup.parse(response);
-            //Tables
-            Element classesInfo = doc.getElementsByClass("listagem").first();
-            Element daysTable = doc.select("table").get(1);
-            //Interpret tables with jSoupTable class
-            jSoupTable days = new jSoupTable(daysTable);
-            jSoupTable classes = new jSoupTable(classesInfo);
+        Response getClassesResponse = sisgradRequest.newCall(getClassesRequest).execute();
+        int responseCode = getClassesResponse.code();
+        String responseMessage = getClassesResponse.message();
+        String response = getClassesResponse.body().string();
 
-            Map<String, Map<String, ClassInfo>> week = new LinkedHashMap<>();//Map<Day, Map<Hour, Class>>, the table represented as a map
-            List<String> daysOfWeek = new ArrayList<>(Arrays.asList("segunda", "terça", "quarta", "quinta", "sexta", "sábado"));//just a list of days of the week
 
-            //Iterates through the table of classes information (like teachers, name of the class, total of hours...)
+        /*
+         * In this page, the first request returns a new location, not the page itself, so it won't work
+         * if we checked for HTTP 200 as we did in getMessages() and getMessage(). Therefore, if the location
+         * isn't for the login page, we keep going. Else, if it is, we call fixedRedirection() in hope it'll work.
+         */
+        if (getClassesResponse.isSuccessful()) {
+            if (detectPage(getClassesResponse) == PAGES.GET_CLASSES) {
+                Document doc = Jsoup.parse(response);
 
-            //Iterates through the table of classes per each day and hour
-            for (String day : daysOfWeek) {//For each day, we're gonna add an entry in the 'week' Map
-                Map<String, ClassInfo> dayColumn = new LinkedHashMap<>();//This is the Map<Hour, Class> which will be mounted for each day of the week
-                for (int i = 0; i < days.getAllRows().size(); i++) {
-                    if (days.isRow(i) && days.getRowTags(i).get(days.getColumnIndex(day, 0)).hasText()) {//it could be a header
-                        String hourOfClass = days.getRowTags(i).get(0).text();
-                        //TODO: tolerate ç as c and á, é, í, ... as a, e, i.
-                        //System.out.println("DEBUG SPLIT: "+days.getRowTags(i).get(days.getColumnIndex(day, 0)).text());
-                        String classTitle = "";
-                        String classCode = "";
-                        String classLocation = "";
-                        if (!days.getRowTags(i).get(days.getColumnIndex(day, 0)).getElementsByTag("div").isEmpty()) {
-                            classTitle = days.getRowTags(i).get(days.getColumnIndex(day, 0)).getElementsByTag("div").first().attr("title");
-                        }
-                        if (days.getRowTags(i).get(days.getColumnIndex(day, 0)).text().contains("/")) {
-                            try {
-                                classCode = days.getRowTags(i).get(days.getColumnIndex(day, 0)).text().split("/")[0];
-                                classLocation = days.getRowTags(i).get(days.getColumnIndex(day, 0)).text().split("/")[1];
-                            } catch (Exception e) {
+                //Tables
+                Element classesInfo = doc.getElementsByClass("listagem").first();
+                Element daysTable = doc.select("table").get(1);
+                //Interpret tables with jSoupTable class
+                jSoupTable days = new jSoupTable(daysTable);
+                jSoupTable classes = new jSoupTable(classesInfo);
 
+                Map<String, Map<String, ClassInfo>> week = new LinkedHashMap<>();//Map<Day, Map<Hour, Class>>, the table represented as a map
+                List<String> daysOfWeek = new ArrayList<>(Arrays.asList("segunda", "terça", "quarta", "quinta", "sexta", "sábado"));//just a list of days of the week
+
+                //Iterates through the table of classes information (like teachers, name of the class, total of hours...)
+
+                //Iterates through the table of classes per each day and hour
+                for (String day : daysOfWeek) {//For each day, we're gonna add an entry in the 'week' Map
+                    Map<String, ClassInfo> dayColumn = new LinkedHashMap<>();//This is the Map<Hour, Class> which will be mounted for each day of the week
+                    for (int i = 0; i < days.getAllRows().size(); i++) {
+                        if (days.isRow(i) && days.getRowTags(i).get(days.getColumnIndex(day, 0)).hasText()) {//it could be a header
+                            String hourOfClass = days.getRowTags(i).get(0).text();
+                            //TODO: tolerate ç as c and á, é, í, ... as a, e, i.
+                            //System.out.println("DEBUG SPLIT: "+days.getRowTags(i).get(days.getColumnIndex(day, 0)).text());
+                            String classTitle = "";
+                            String classCode = "";
+                            String classLocation = "";
+                            if (!days.getRowTags(i).get(days.getColumnIndex(day, 0)).getElementsByTag("div").isEmpty()) {
+                                classTitle = days.getRowTags(i).get(days.getColumnIndex(day, 0)).getElementsByTag("div").first().attr("title");
                             }
+                            if (days.getRowTags(i).get(days.getColumnIndex(day, 0)).text().contains("/")) {
+                                try {
+                                    classCode = days.getRowTags(i).get(days.getColumnIndex(day, 0)).text().split("/")[0];
+                                    classLocation = days.getRowTags(i).get(days.getColumnIndex(day, 0)).text().split("/")[1];
+                                } catch (Exception e) {
+
+                                }
+                            }
+                            ClassInfo aboutClass = new ClassInfo(
+                                    classTitle,
+                                    classCode,
+                                    classLocation
+                            );
+                            dayColumn.put(hourOfClass, aboutClass);
                         }
-                        ClassInfo aboutClass = new ClassInfo(
-                                classTitle,
-                                classCode,
-                                classLocation
-                        );
-                        dayColumn.put(hourOfClass, aboutClass);
                     }
+                    week.put(day, dayColumn);
                 }
-                week.put(day, dayColumn);
+                return new GetClassesResponse(null, week);
+            } else {
+                return new GetClassesResponse(new PageError(responseCode, responseMessage), null);
             }
-            return new GetClassesResponse(null, week);
-        } else if (fixedRedirection(recursivity, locationRedirect, responseCode)) {
-            /* If fixedRedirection() returned true, it means it successfully fixed the redirection, which was
-             * probably caused by a session timeout, so in order to not interrupt the method call, we return
-             * the result of the new getMessagesWrapped, which will PROBABLY not suffer from another redirection,
-             * but in case it happens indefinitely, recursivity will decrease until fixedRedirection will return false
-             * and everything will stop.
-             */
-            return getClassesWrapped(recursivity-1);
         } else {
+            System.out.println("couldn't find getClasses() page");
             return new GetClassesResponse(new PageError(responseCode, responseMessage), null);
         }
     }
-
     public class GetGradesResponse{
         public PageError pageError;
         public List < Map < String, String >> grades;
@@ -641,19 +842,18 @@ public class SisgradCrawler {
             }
         }
     }
-    public GetGradesResponse getGrades() throws Exception {
-        URL getGradesURL = new URL(protocol + "://" + domain + "/" + "academico" + "/selecionar.aluno.action?url=FREQUENCIAS_NOTAS  ");
-        SimpleHTTPSRequest.requestObject gradesRequest = sisgradRequest.SimpleHTTPSRequest(getGradesURL, null);
-        System.out.println("response code: "+gradesRequest.responseCode);
-        System.out.println("location: "+gradesRequest.location);
-        System.out.println("response: "+gradesRequest.response);
 
-        System.out.println("ok, let's access "+ gradesRequest.location+"...");
-        SimpleHTTPSRequest.requestObject gradesRequestRedirected = sisgradRequest.SimpleHTTPSRequest(new URL(gradesRequest.location), null);
-        System.out.println("response code: "+gradesRequestRedirected.responseCode);
-        System.out.println("location: "+gradesRequestRedirected.location);
+    public GetGradesResponse getGrades() throws Exception {
+        Request getGradesRequest = new Request.Builder().
+                url(protocol + "://" + domain + "/" + "academico" + "/selecionar.aluno.action?url=FREQUENCIAS_NOTAS").
+                build();
+
+        Response getGradesResponse = sisgradRequest.newCall(getGradesRequest).execute();
+        int responseCode = getGradesResponse.code();
+        String responseMessage = getGradesResponse.message();
+        String response = getGradesResponse.body().string();
         //System.out.println("response: "+gradesRequestRedirected.response);
-        Document doc = Jsoup.parse(gradesRequestRedirected.response);
+        Document doc = Jsoup.parse(response);
         Element gradesTable = doc.getElementById("tabelaNotas");
         jSoupTable gradlesJsoupTable = new jSoupTable(gradesTable);
         //System.out.println(gradlesJsoupTable.getAllRowStrings());
@@ -677,8 +877,8 @@ public class SisgradCrawler {
     }
 
     //TODO: add safe splitting to magicalNumber
-    public String getMagicalNumber(SimpleHTTPSRequest.requestObject page) {
-        Document doc = Jsoup.parse(page.response);
+    public String getMagicalNumber(String page) {
+        Document doc = Jsoup.parse(page);
         Elements pageNumbers = doc.getElementsByClass("listagemTopo");
         Elements pageLinks = pageNumbers.select("a");
         //if (debugMode) {System.out.println("pageLinks: "+ pageLinks);}
