@@ -14,6 +14,7 @@ import java.net.URL;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 //TODO: prepare this and other web crawlers to load all components in the page in order to perfectly simulate a computer access
 
 public class SisgradCrawler {
@@ -91,7 +92,12 @@ public class SisgradCrawler {
             .cookieJar(cookieJar)
             .addNetworkInterceptor(new UserAgentInterceptor(userAgent))
             .addNetworkInterceptor(logging)
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .writeTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
             .build();
+                //.addNetworkInterceptor(logging)
+
 
     /**
      * Sisgrad initialization stores the username and password. Later, we just call loginToSentinela().
@@ -143,7 +149,7 @@ public class SisgradCrawler {
 
     public int detectPage(Response response) {
         List<String> pathSegments = response.request().url().pathSegments();
-        if (pathSegments.contains("sentinela.E2RFRR2R2R2R.action")) {
+        if (pathSegments.contains("/sentinela/") && pathSegments.size()==1) {
             return PAGES.LOGIN_FORM;
         }
         if (pathSegments.contains("sentinela.showDesktop.action")) {
@@ -560,7 +566,8 @@ public class SisgradCrawler {
             this.alreadyLoadedMagicalNumber = true;
         }
         String response = getMessagesResponse.body().string();
-
+        System.out.println(getMessagesResponse.request());
+        System.out.println(response);
         if (getMessagesResponse.isSuccessful()) {//successfully loaded some page
             if (detectPage(getMessagesResponse)==PAGES.GET_MESSAGES) {//verify if we didn't get redirected
                 Document doc = Jsoup.parse(response);
