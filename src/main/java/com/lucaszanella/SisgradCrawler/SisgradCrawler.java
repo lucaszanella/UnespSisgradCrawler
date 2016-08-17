@@ -91,7 +91,7 @@ public class SisgradCrawler {
     private OkHttpClient sisgradRequest = new OkHttpClient.Builder()
             .cookieJar(cookieJar)
             .addNetworkInterceptor(new UserAgentInterceptor(userAgent))
-            .addNetworkInterceptor(logging)
+            //.addNetworkInterceptor(logging)
             .connectTimeout(20, TimeUnit.SECONDS)
             .writeTimeout(20, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
@@ -535,8 +535,6 @@ public class SisgradCrawler {
                 System.out.println("getting page 0");
             }
             getMessagesResponse = sisgradRequest.newCall(getMessagesRequest).execute();
-            this.magicalNumber = getMagicalNumber(getMessagesResponse.body().string());
-            this.alreadyLoadedMagicalNumber = true;
         } else if (this.alreadyLoadedMagicalNumber) {
             if (debugMode) {
                 System.out.println("already loaded page magicalNumber before, now getting page " + page);
@@ -546,31 +544,33 @@ public class SisgradCrawler {
             if (debugMode) {
                 System.out.println("didn't load magicalNumber before, gonna get the first page to get magicalNumber and then load the page " + page);
             }
-            //SimpleHTTPSRequest.requestObject magicalNumberRequest = sisgradRequest.SimpleHTTPSRequest(mountMessagePage(0, ""), null); //Yes, I really need to load this page first just to get the magicalNumber that ables me to get the other pages
-            //Query the page 0 to get the maginal number
+            //Query to the page 0 which has the magical number
             Response magicalNumberRequest = sisgradRequest.newCall(
                     new Request.Builder().
                             url(mountMessagePage(0, "")).
                             build()
             ).execute();
-
+            String magicalNumberResponse = magicalNumberRequest.body().string();
+            this.magicalNumber = getMagicalNumber(Jsoup.parse(magicalNumberResponse));
             if (debugMode) {
-                System.out.println("Setting up magical number: " + getMagicalNumber(magicalNumberRequest.body().string()));
-            }
-            this.magicalNumber = getMagicalNumber(magicalNumberRequest.body().string());
-
-            if (debugMode) {
+                System.out.println("Setting up magical number: " + this.magicalNumber);
                 System.out.println("already loaded magicalNumber, now gonna get new page: " + page);
             }
-            getMessagesResponse = sisgradRequest.newCall(getMessagesRequest).execute();
             this.alreadyLoadedMagicalNumber = true;
+           // getMessagesResponse = sisgradRequest.newCall(getMessagesRequest).execute();
+            return getMessagesWrapped(page, recursivity);
         }
         String response = getMessagesResponse.body().string();
+        //System.out.println("response "+getMessagesResponse.body().string());
         System.out.println(getMessagesResponse.request());
-        System.out.println(response);
         if (getMessagesResponse.isSuccessful()) {//successfully loaded some page
             if (detectPage(getMessagesResponse)==PAGES.GET_MESSAGES) {//verify if we didn't get redirected
                 Document doc = Jsoup.parse(response);
+                if (page==0) {
+                    this.magicalNumber = getMagicalNumber(doc);
+                    this.alreadyLoadedMagicalNumber = true;
+                }
+                //System.out.println(doc);
                 Element table = doc.getElementById("destinatario");
                 jSoupTable messagesTable = new jSoupTable(table);
                 int tableSize = messagesTable.getAllRows().size();
@@ -884,8 +884,7 @@ public class SisgradCrawler {
     }
 
     //TODO: add safe splitting to magicalNumber
-    public String getMagicalNumber(String page) {
-        Document doc = Jsoup.parse(page);
+    public String getMagicalNumber(Document doc) {
         Elements pageNumbers = doc.getElementsByClass("listagemTopo");
         Elements pageLinks = pageNumbers.select("a");
         //if (debugMode) {System.out.println("pageLinks: "+ pageLinks);}
